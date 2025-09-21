@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #map { height: 70vh; }
+  .map-search { max-width: 480px; }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="container mt-3">
+    <div class="d-flex mb-2">
+      <input id="map-search-input" class="form-control map-search me-2" placeholder="Search location or address">
+      <button id="map-search-btn" class="btn btn-primary me-2">Search</button>
+      <button id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
+    </div>
+    <div class="d-flex align-items-center mb-3">
+      <label class="me-2 mb-0">Radius:</label>
+      <input id="radius-slider" type="range" min="0.5" max="60" step="0.1" value="8" style="width:300px;" />
+      <span id="radius-value" class="ms-2">8 km</span>
+    </div>
+    <div id="map"></div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+async function geocode(query) {
+  // Use Nominatim public API for geocoding
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data[0];
+}
+
+async function reverseGeocode(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data;
+}
+
+function createMap() {
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map);
+  return map;
+}
+
+function addJobsToMap(map, jobs) {
+  // remove existing job layer if present
+  if (map._jobLayer) {
+    map.removeLayer(map._jobLayer);
+  }
+  const markers = [];
+  const layer = L.layerGroup();
+  jobs.forEach(j => {
+    const marker = L.marker([j.lat, j.lon]).bindPopup(`<strong>${j.title}</strong><br>${j.company}<br>${j.distance_miles} miles away<br><a href='/search/${j.id}/'>View</a> <a href='/search/${j.id}/apply/'>Apply</a>`);
+    marker.addTo(layer);
+    markers.push(marker);
+  });
+  layer.addTo(map);
+  map._jobLayer = layer;
+  if (markers.length) {
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.5));
+  }
+}
+
+async function fetchNearby(lat, lon, radius_miles=5, q='') {
+  const url = `/search/map/nearby/?lat=${lat}&lon=${lon}&radius=${radius_miles}&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url);
+  return res.json();
+}
+
+(async function(){
+  const map = createMap();
+  // ensure initial view
+  map.setView([20,0], 2);
+  let userMarker = null;
+  let userCircle = null;
+  let searchMarker = null;
+  let searchCircle = null;
+  // slider-driven radius: default 8 km (~5 miles)
+  let currentRadiusKm = 8;
+  let currentRadiusMiles = currentRadiusKm * 0.621371;
+  let searchRadiusMeters = currentRadiusKm * 1000;
+
+  // slider UI wiring
+  const radiusSlider = document.getElementById('radius-slider');
+  const radiusValue = document.getElementById('radius-value');
+  if (radiusSlider) {
+    radiusSlider.addEventListener('input', ()=>{
+      currentRadiusKm = parseFloat(radiusSlider.value);
+      currentRadiusMiles = currentRadiusKm * 0.621371;
+      searchRadiusMeters = currentRadiusKm * 1000;
+      if (radiusValue) radiusValue.textContent = `${currentRadiusKm} km`;
+      // update visual circle if present
+      const center = map.getCenter();
+      if (searchCircle) {
+        searchCircle.setRadius(searchRadiusMeters);
+      }
+    });
+    // initialize display
+    if (radiusValue) radiusValue.textContent = `${currentRadiusKm} km`;
+  }
+
+  // Try browser geolocation first
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      map.setView([lat, lon], 12);
+  // reflect that this is the active location in the search input
+  const input = document.getElementById('map-search-input');
+      if (input) input.value = 'Current location';
+      // add user marker and circle
+      if (userMarker) map.removeLayer(userMarker);
+      if (userCircle) map.removeLayer(userCircle);
+      userMarker = L.marker([lat, lon], {title: 'You'}).addTo(map).bindPopup('You are here').openPopup();
+  userCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#007bff', weight: 1, opacity: 0.4}).addTo(map);
+  // also set the search marker/circle to this center
+  if (searchMarker) map.removeLayer(searchMarker);
+  if (searchCircle) map.removeLayer(searchCircle);
+  searchMarker = L.marker([lat, lon], {title: 'Search center', icon: L.icon({iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', iconSize: [25,41], iconAnchor:[12,41]})}).addTo(map);
+  searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+  const data = await fetchNearby(lat, lon, currentRadiusMiles);
+  if (!data.error) addJobsToMap(map, data.jobs);
+      // Optionally set the input to a nicer display name by reverse-geocoding
+      try {
+        const rev = await reverseGeocode(lat, lon);
+        if (rev && rev.display_name && input) input.value = rev.display_name;
+      } catch (e) {
+        // ignore reverse geocode failures
+      }
+    }, async (err) => {
+      // Show a small message to the user if they denied geolocation
+      console.warn('Geolocation error', err);
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-warning mt-2';
+      alertDiv.textContent = 'Unable to access your location. Use the search box to find jobs near a location.';
+      document.querySelector('.container').insertBefore(alertDiv, document.getElementById('map'));
+    });
+  } else {
+    map.setView([20,0], 2);
+  }
+
+  document.getElementById('map-search-btn').addEventListener('click', async ()=>{
+    const q = document.getElementById('map-search-input').value.trim();
+    if (!q) return;
+    const place = await geocode(q);
+    if (!place) return alert('Location not found');
+    const lat = parseFloat(place.lat), lon = parseFloat(place.lon);
+  // set the search input to the normalized display name returned by geocoder
+  const input = document.getElementById('map-search-input');
+  if (input && place.display_name) input.value = place.display_name;
+    map.setView([lat, lon], 12);
+  const data = await fetchNearby(lat, lon, currentRadiusMiles, q);
+  if (!data.error) addJobsToMap(map, data.jobs);
+  });
+
+  // Use my location button
+  document.getElementById('use-my-location').addEventListener('click', (e)=>{
+    e.preventDefault();
+    if (!navigator.geolocation) return alert('Geolocation not supported');
+    navigator.geolocation.getCurrentPosition(async (pos)=>{
+      const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      map.setView([lat, lon], 12);
+      const input = document.getElementById('map-search-input');
+      if (input) input.value = 'Current location';
+      // add marker/circle
+      if (userMarker) map.removeLayer(userMarker);
+      if (userCircle) map.removeLayer(userCircle);
+      userMarker = L.marker([lat, lon], {title: 'You'}).addTo(map).bindPopup('You are here').openPopup();
+      userCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#007bff', weight: 1, opacity: 0.4}).addTo(map);
+      // set/replace search marker and circle
+      if (searchMarker) map.removeLayer(searchMarker);
+      if (searchCircle) map.removeLayer(searchCircle);
+      searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
+      searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+      try {
+        const rev = await reverseGeocode(lat, lon);
+        if (rev && rev.display_name && input) input.value = rev.display_name;
+      } catch (e) {}
+  const data = await fetchNearby(lat, lon, currentRadiusMiles);
+  if (!data.error) addJobsToMap(map, data.jobs);
+    }, (err)=> alert('Unable to get your location'));
+  });
+
+  // When the user moves the map, update the input with reverse-geocoded name and refresh jobs
+  let moveTimeout = null;
+  map.on('moveend', async ()=>{
+    // debounce
+    if (moveTimeout) clearTimeout(moveTimeout);
+    moveTimeout = setTimeout(async ()=>{
+      const center = map.getCenter();
+      const lat = center.lat, lon = center.lng;
+      try {
+        const rev = await reverseGeocode(lat, lon);
+        const input = document.getElementById('map-search-input');
+        if (rev && rev.display_name && input) input.value = rev.display_name;
+      } catch (e) {}
+      // move the search marker/circle to the new center
+      if (searchMarker) map.removeLayer(searchMarker);
+      if (searchCircle) map.removeLayer(searchCircle);
+      searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
+      searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+  const data = await fetchNearby(lat, lon, currentRadiusMiles);
+  if (!data.error) addJobsToMap(map, data.jobs);
+    }, 300);
+  });
+})();
+</script>
+{% endblock %}

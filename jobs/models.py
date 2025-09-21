@@ -9,6 +9,9 @@ class Job(models.Model):
 	location = models.CharField(max_length=255, blank=True)
 	description = models.TextField(blank=True)
 	posted_at = models.DateTimeField(default=timezone.now)
+	# Optional geographic coordinates (latitude, longitude)
+	latitude = models.FloatField(null=True, blank=True)
+	longitude = models.FloatField(null=True, blank=True)
 
 	def __str__(self):
 		return f"{self.title} @ {self.company or 'Unknown'}"
@@ -20,6 +23,10 @@ class Application(models.Model):
 	cover_letter_text = models.TextField(blank=True)
 	cover_letter_file = models.FileField(upload_to='applications/', blank=True, null=True)
 	submitted_at = models.DateTimeField(default=timezone.now)
+	# Applicant-provided location (optional) to help map applicants or preferred location
+	applicant_location = models.CharField(max_length=255, blank=True)
+	applicant_latitude = models.FloatField(null=True, blank=True)
+	applicant_longitude = models.FloatField(null=True, blank=True)
 
 	def __str__(self):
 		return f"Application by {self.user} to {self.job}"

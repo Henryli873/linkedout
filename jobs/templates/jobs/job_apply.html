@@ -23,6 +23,13 @@
     <div class="card-body">
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
+  {{ form.applicant_latitude }}
+  {{ form.applicant_longitude }}
+        <div class="mb-2">
+          <label class="form-label">Your location (optional)</label>
+          {{ form.applicant_location }}
+          <div class="form-text">Type a city or address to place yourself on the map (optional).</div>
+        </div>
         <div class="mb-2">
           {{ form.cover_letter_text }}
         </div>
@@ -35,10 +42,35 @@
         </div>
         <div class="d-flex justify-content-between">
           <button name="skip" value="1" class="btn btn-outline-secondary">Skip cover letter</button>
-          <button type="submit" class="btn btn-primary">Submit application</button>
+          <button id="submit-application" type="submit" class="btn btn-primary">Submit application</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+<script>
+// Basic client-side geocode using Nominatim to fill hidden lat/lon before submit
+async function geocodeOnce(query) {
+  if (!query) return null;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data && data.length ? data[0] : null;
+}
+
+document.getElementById('submit-application').addEventListener('click', async function(e){
+  const locInput = document.querySelector('[name="applicant_location"]');
+  const latInput = document.querySelector('[name="applicant_latitude"]');
+  const lonInput = document.querySelector('[name="applicant_longitude"]');
+  if (locInput && locInput.value && (!latInput.value || !lonInput.value)) {
+    // attempt geocode
+    const place = await geocodeOnce(locInput.value);
+    if (place) {
+      latInput.value = place.lat;
+      lonInput.value = place.lon;
+    }
+  }
+  // allow form to submit
+});
+</script>
 {% endblock %}
