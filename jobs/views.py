@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from .models import Job, Application
@@ -71,5 +70,3 @@ def apply(request, pk):
 
 def apply_thanks(request):
 	return render(request, 'jobs/apply_thanks.html')
-=======
->>>>>>> 83f954cec23a673e3fa5edb790685457b89332f9
