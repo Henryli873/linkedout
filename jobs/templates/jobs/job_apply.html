@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+/* Bottom corner popup styling */
+.apply-popup {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 360px;
+  z-index: 1200;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="apply-popup">
+  <div class="card shadow">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Apply to {{ job.title }}</strong>
+      <a href="{% url 'jobs:job_detail' job.pk %}" class="btn btn-sm btn-link">Close</a>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-2">
+          {{ form.cover_letter_text }}
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Or upload PDF cover letter</label>
+          {{ form.cover_letter_file }}
+          {% for err in form.cover_letter_file.errors %}
+            <div class="invalid-feedback d-block">{{ err }}</div>
+          {% endfor %}
+        </div>
+        <div class="d-flex justify-content-between">
+          <button name="skip" value="1" class="btn btn-outline-secondary">Skip cover letter</button>
+          <button type="submit" class="btn btn-primary">Submit application</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

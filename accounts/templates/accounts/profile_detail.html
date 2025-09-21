@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile_user.username }}'s Profile{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="d-flex align-items-center mb-3">
+      {% if profile and profile.avatar %}
+        <img src="{{ profile.avatar.url }}" class="rounded-circle me-3" style="width:96px; height:96px; object-fit:cover;">
+      {% endif %}
+      <div>
+        <h2 class="mb-0">{{ profile_user.get_full_name|default:profile_user.username }}</h2>
+        {% if profile and profile.headline %}<div class="text-muted">{{ profile.headline }}</div>{% endif %}
+      </div>
+    </div>
+
+    {% if profile %}
+      {% if not request.user.is_authenticated or not request.user.is_recruiter %}
+        {# Non-recruiters and anonymous users see full profile (owner controls privacy only for recruiters) #}
+        <p>{{ profile.bio|linebreaks }}</p>
+
+        <h5>Skills</h5>
+        <p>{{ profile.skills }}</p>
+
+        <h5>Experience</h5>
+        <p>{{ profile.experience|linebreaks }}</p>
+
+        <h5>Education</h5>
+        <p>{{ profile.education|linebreaks }}</p>
+
+        <h5>Links</h5>
+        <ul>
+          {% if profile.github %}<li><a href="{{ profile.github }}" target="_blank">GitHub</a></li>{% endif %}
+          {% if profile.linkedin %}<li><a href="{{ profile.linkedin }}" target="_blank">LinkedIn</a></li>{% endif %}
+          {% if profile.website %}<li><a href="{{ profile.website }}" target="_blank">Website</a></li>{% endif %}
+        </ul>
+
+        {% if profile.is_recruiter %}
+          <h5>Company</h5>
+          <p>{{ profile.company }}</p>
+        {% else %}
+          <h5>Desired Positions</h5>
+          <p>{{ profile.desired_positions }}</p>
+          <h5>Desired Companies</h5>
+          <p>{{ profile.desired_companies }}</p>
+        {% endif %}
+      {% else %}
+        {# Recruiter view: only show sections the user marked visible #}
+        {% if profile.headline_visible and profile.headline %}
+          <div class="mb-2"><strong>{{ profile.headline }}</strong></div>
+        {% endif %}
+        {% if profile.bio_visible and profile.bio %}
+          <p>{{ profile.bio|linebreaks }}</p>
+        {% endif %}
+
+        {% if profile.skills_visible and profile.skills %}
+          <h5>Skills</h5>
+          <p>{{ profile.skills }}</p>
+        {% endif %}
+
+        {% if profile.experience_visible and profile.experience %}
+          <h5>Experience</h5>
+          <p>{{ profile.experience|linebreaks }}</p>
+        {% endif %}
+
+        {% if profile.education_visible and profile.education %}
+          <h5>Education</h5>
+          <p>{{ profile.education|linebreaks }}</p>
+        {% endif %}
+
+        {% if profile.links_visible %}
+          <h5>Links</h5>
+          <ul>
+            {% if profile.github %}<li><a href="{{ profile.github }}" target="_blank">GitHub</a></li>{% endif %}
+            {% if profile.linkedin %}<li><a href="{{ profile.linkedin }}" target="_blank">LinkedIn</a></li>{% endif %}
+            {% if profile.website %}<li><a href="{{ profile.website }}" target="_blank">Website</a></li>{% endif %}
+          </ul>
+        {% endif %}
+
+        {% if profile.is_recruiter and profile.company_visible and profile.company %}
+          <h5>Company</h5>
+          <p>{{ profile.company }}</p>
+        {% endif %}
+
+        {% if not profile.is_recruiter and profile.desired_positions_visible and profile.desired_positions %}
+          <h5>Desired Positions</h5>
+          <p>{{ profile.desired_positions }}</p>
+        {% endif %}
+
+        {% if not profile.is_recruiter and profile.desired_positions_visible and profile.desired_companies %}
+          <h5>Desired Companies</h5>
+          <p>{{ profile.desired_companies }}</p>
+        {% endif %}
+
+        {% if profile.phone_visible and profile.phone %}
+          <h5>Phone</h5>
+          <p>{{ profile.phone }}</p>
+        {% endif %}
+
+        {% if profile.email_visible and profile_user.email %}
+          <h5>Email</h5>
+          <p>{{ profile_user.email }}</p>
+        {% endif %}
+      {% endif %}
+    {% else %}
+      <p>This user has not created a profile yet.</p>
+    {% endif %}
+
+    {% if request.user.is_authenticated and request.user == profile_user %}
+      <a class="btn btn-secondary" href="{% url 'accounts:edit_profile' %}">Edit your profile</a>
+    {% endif %}
+  </div>
+{% endblock %}

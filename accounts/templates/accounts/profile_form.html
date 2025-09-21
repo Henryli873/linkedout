@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-3">Edit Your Profile</h4>
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row">
+            <div class="col-md-4 text-center">
+              {% if profile.avatar %}
+                <img src="{{ profile.avatar.url }}" class="img-fluid rounded-circle mb-3" style="max-width:160px; height:160px; object-fit:cover;" alt="avatar">
+              {% else %}
+                <div class="border rounded-circle d-inline-block mb-3" style="width:160px; height:160px; display:flex; align-items:center; justify-content:center; background:#f0f0f0;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#6c757d" class="bi bi-person" viewBox="0 0 16 16">
+                    <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                    <path fill-rule="evenodd" d="M8 9a5 5 0 0 0-4.546 2.916C3.954 12.958 5.9 14 8 14s4.046-1.042 4.546-2.084A5 5 0 0 0 8 9z"/>
+                  </svg>
+                </div>
+              {% endif %}
+              <div class="mb-2">
+                <label class="form-label">Profile photo</label>
+                {{ form.avatar }}
+                {% for err in form.avatar.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="col-md-8">
+              <div style="max-height:640px; overflow:auto; padding-right:12px;">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_headline">Headline</label>
+                    <div class="form-check form-switch">
+                      {{ form.headline_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.headline }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_bio">Bio</label>
+                    <div class="form-check form-switch">
+                      {{ form.bio_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.bio }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_skills">Skills</label>
+                    <div class="form-check form-switch">
+                      {{ form.skills_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.skills }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_education">Education</label>
+                    <div class="form-check form-switch">
+                      {{ form.education_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.education }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_experience">Experience</label>
+                    <div class="form-check form-switch">
+                      {{ form.experience_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.experience }}
+                </div>
+
+                <div class="mb-3" id="company-field">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_company">Company</label>
+                    <div class="form-check form-switch">
+                      {{ form.company_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.company }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_desired_positions">Desired positions</label>
+                    <div class="form-check form-switch">
+                      {{ form.desired_positions_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.desired_positions }}
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <label class="form-label mb-0" for="id_desired_companies">Desired companies</label>
+                      <div class="form-check form-switch">
+                        {{ form.desired_companies_visible }}
+                        <label class="form-check-label ms-2">Visible to recruiters</label>
+                      </div>
+                    </div>
+                  {{ form.desired_companies }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_phone">Phone</label>
+                    <div class="form-check form-switch">
+                      {{ form.phone_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.phone }}
+                </div>
+
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0" for="id_email">Email</label>
+                    <div class="form-check form-switch">
+                      {{ form.email_visible }}
+                      <label class="form-check-label ms-2">Visible to recruiters</label>
+                    </div>
+                  </div>
+                  {{ form.email }}
+                </div>
+
+                <div class="mb-3">
+                  <button class="btn btn-primary" type="submit">Save changes</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const recruiterCheckbox = document.querySelector('[name="is_recruiter"]');
+      const companyWrap = document.getElementById('company-field');
+      if(!recruiterCheckbox || !companyWrap) return;
+      function update() { companyWrap.style.display = recruiterCheckbox.checked ? '' : 'none'; }
+      recruiterCheckbox.addEventListener('change', update);
+      update();
+    })();
+  </script>
+{% endblock %}

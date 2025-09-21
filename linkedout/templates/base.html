@@ -20,7 +20,16 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center">
+                    <li class="nav-item me-3">
+                        <form class="d-flex" role="search" method="get" action="/search/">
+                          <input class="form-control form-control-sm" type="search" placeholder="Search jobs, skills, companies" aria-label="Search" name="q">
+                          <button class="btn btn-sm btn-light ms-2" type="submit">Search</button>
+                        </form>
+                    </li>
+                    <li class="nav-item me-3">
+                        <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterOffcanvas" aria-controls="filterOffcanvas">Filters</button>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#">Find Jobs</a> </li>
                     <li class="nav-item">
@@ -29,27 +38,43 @@
                 
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
-                        {% if user.is_recruiter %} 
-                            <li class="nav-item"><a href="#" class="nav-link">Post a Job</a></li> <li class="nav-item"><a href="#" class="nav-link">My Postings</a></li>
+                        {% if user.is_recruiter %}
+                            <li class="nav-item"><a href="#" class="nav-link">Post a Job</a></li>
+                            <li class="nav-item"><a href="#" class="nav-link">My Postings</a></li>
                         {% else %}
-                            <li class="nav-item"><a href="#" class="nav-link">My Applications</a></li> <li class="nav-item"><a href="#" class="nav-link">Recommendations</a></li> {% endif %}
+                            <li class="nav-item"><a href="#" class="nav-link">My Applications</a></li>
+                            <li class="nav-item"><a href="#" class="nav-link">Recommendations</a></li>
+                        {% endif %}
 
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                Welcome, {{ user.username }}
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                {% if user_profile and user_profile.avatar %}
+                                    <img src="{{ user_profile.avatar.url }}" alt="avatar" class="rounded-circle me-2" style="width:36px; height:36px; object-fit:cover;">
+                                {% else %}
+                                    <span class="navbar-toggler-icon me-2"></span>
+                                {% endif %}
+                                <span class="d-none d-lg-inline">{{ user.username }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#">My Profile</a></li> <li><a class="dropdown-item" href="#">Settings</a></li> <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="#">Logout</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounts:profile_detail' user.username %}">My Profile</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounts:edit_profile' %}">Edit Profile</a></li>
+                                <li><a class="dropdown-item" href="#">Settings</a></li>
+                                                                <li><hr class="dropdown-divider"></li>
+                                                                <li>
+                                                                    <form method="post" action="{% url 'logout' %}" style="margin:0;">
+                                                                        {% csrf_token %}
+                                                                        <button type="submit" class="dropdown-item">Logout</button>
+                                                                    </form>
+                                                                </li>
                             </ul>
                         </li>
 
                     {% else %}
                         <li class="nav-item">
-                            <a href="#" class="nav-link">Login</a>
+                            <a href="{% url 'login' %}" class="nav-link">Login</a>
                         </li>
                         <li class="nav-item">
-                            <a href="#" class="btn btn-light">Sign Up</a>
+                            <a href="{% url 'accounts:signup' %}" class="btn btn-light">Sign Up</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -71,3 +96,48 @@
     {% block extra_js %}{% endblock %}
 </body>
 </html>
+
+<!-- Offcanvas filter panel -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filterOffcanvas" aria-labelledby="filterOffcanvasLabel">
+    <div class="offcanvas-header">
+        <h5 id="filterOffcanvasLabel">Search Filters</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <form id="searchFilters" method="get" action="/search/">
+            <div class="mb-3">
+                <label class="form-label">Title / Keyword</label>
+                <input type="text" name="q" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Location</label>
+                <input type="text" name="location" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Salary min</label>
+                <input type="number" name="salary_min" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Salary max</label>
+                <input type="number" name="salary_max" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Work type</label>
+                <select name="work_type" class="form-select">
+                    <option value="">Any</option>
+                    <option value="remote">Remote</option>
+                    <option value="onsite">Onsite</option>
+                    <option value="hybrid">Hybrid</option>
+                </select>
+            </div>
+            <div class="mb-3 form-check">
+                <input class="form-check-input" type="checkbox" name="visa_sponsorship" id="visa_sponsorship">
+                <label class="form-check-label" for="visa_sponsorship">Visa sponsorship available</label>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button type="reset" class="btn btn-light">Clear</button>
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="card">
+    <div class="card-body">
+      <h3>{{ job.title }}</h3>
+      <p class="text-muted">{{ job.company }} — {{ job.location }}</p>
+      <div class="mb-3">{{ job.description|linebreaks }}</div>
+      <a href="{% url 'jobs:apply' job.pk %}" class="btn btn-primary">Apply</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
