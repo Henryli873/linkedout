@@ -50,18 +50,45 @@ function createMap() {
   return map;
 }
 
-function addJobsToMap(map, jobs) {
+function addJobsToMap(map, jobs, center=null, radiusMiles=null) {
   // remove existing job layer if present
   if (map._jobLayer) {
     map.removeLayer(map._jobLayer);
   }
   const markers = [];
   const layer = L.layerGroup();
+
+  // icons: default blue and highlighted red
+  const defaultIcon = L.icon({
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    iconSize: [25,41], iconAnchor:[12,41]
+  });
+  const redIcon = L.icon({
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x-red.png',
+    iconSize: [25,41], iconAnchor:[12,41]
+  });
+
   jobs.forEach(j => {
-    const marker = L.marker([j.lat, j.lon]).bindPopup(`<strong>${j.title}</strong><br>${j.company}<br>${j.distance_miles} miles away<br><a href='/search/${j.id}/'>View</a> <a href='/search/${j.id}/apply/'>Apply</a>`);
+    // determine if job is within selected radius (if center and radius provided)
+    let inside = false;
+    if (center && radiusMiles != null) {
+      // compute haversine distance between center and job in miles
+      const toRad = v => v * Math.PI / 180;
+      const R = 3958.8; // miles
+      const dLat = toRad(j.lat - center.lat);
+      const dLon = toRad(j.lon - center.lng);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(center.lat)) * Math.cos(toRad(j.lat)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const d = R * c;
+      inside = d <= radiusMiles + 1e-6;
+    }
+
+    const icon = inside ? redIcon : defaultIcon;
+    const marker = L.marker([j.lat, j.lon], {icon}).bindPopup(`<strong>${j.title}</strong><br>${j.company}<br>${j.distance_miles} miles away<br><a href='/search/${j.id}/'>View</a> <a href='/search/${j.id}/apply/'>Apply</a>`);
     marker.addTo(layer);
     markers.push(marker);
   });
+
   layer.addTo(map);
   map._jobLayer = layer;
   if (markers.length) {
@@ -128,7 +155,7 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   searchMarker = L.marker([lat, lon], {title: 'Search center', icon: L.icon({iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', iconSize: [25,41], iconAnchor:[12,41]})}).addTo(map);
   searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
   const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs);
+  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
       // Optionally set the input to a nicer display name by reverse-geocoding
       try {
         const rev = await reverseGeocode(lat, lon);
@@ -159,7 +186,7 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   if (input && place.display_name) input.value = place.display_name;
     map.setView([lat, lon], 12);
   const data = await fetchNearby(lat, lon, currentRadiusMiles, q);
-  if (!data.error) addJobsToMap(map, data.jobs);
+  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
   });
 
   // Use my location button
@@ -186,7 +213,7 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
         if (rev && rev.display_name && input) input.value = rev.display_name;
       } catch (e) {}
   const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs);
+  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
     }, (err)=> alert('Unable to get your location'));
   });
 
@@ -209,7 +236,7 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
       searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
       searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
   const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs);
+  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
     }, 300);
   });
 })();

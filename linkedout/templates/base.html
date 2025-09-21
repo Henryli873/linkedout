@@ -34,12 +34,16 @@
                         <a class="nav-link" href="{% url 'jobs:search' %}">Find Jobs</a> </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'jobs:interactive_map' %}">Interactive Map</a> </li>
+                    {% if request.user.is_authenticated and user_profile and user_profile.is_recruiter %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'jobs:post_job' %}">Post a job</a> </li>
+                    {% endif %}
                 </ul>
                 
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
-                        {% if user.is_recruiter %}
-                            <li class="nav-item"><a href="#" class="nav-link">Post a Job</a></li>
+                        {% if user_profile and user_profile.is_recruiter %}
+                            <li class="nav-item"><a href="{% url 'jobs:post_job' %}" class="nav-link">Post a Job</a></li>
                             <li class="nav-item"><a href="#" class="nav-link">My Postings</a></li>
                         {% else %}
                             <li class="nav-item"><a href="#" class="nav-link">My Applications</a></li>

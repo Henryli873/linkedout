@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from .models import Job, Application
+from .forms import JobPostForm
 from django import forms
 from django.db.models import Case, When, Value, IntegerField, F, Q
 from django.http import JsonResponse
@@ -105,6 +106,23 @@ def apply_thanks(request):
 def interactive_map(request):
 	# Renders the map page. Frontend will call the `jobs_nearby` endpoint.
 	return render(request, 'jobs/interactive_map.html')
+
+
+@login_required
+def post_job(request):
+	# Only allow recruiters
+	profile = getattr(request.user, 'profile', None)
+	if not profile or not profile.is_recruiter:
+		return redirect('home:index')
+
+	if request.method == 'POST':
+		form = JobPostForm(request.POST)
+		if form.is_valid():
+			job = form.save()
+			return redirect('jobs:job_detail', pk=job.pk)
+	else:
+		form = JobPostForm()
+	return render(request, 'jobs/post_job.html', {'form': form})
 
 
 def haversine(lon1, lat1, lon2, lat2):

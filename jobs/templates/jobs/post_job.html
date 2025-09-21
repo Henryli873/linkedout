@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h3 class="card-title mb-3">Post a job</h3>
+          <p class="text-muted small">Create a clear, concise job post so the right candidates find you.</p>
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-3">
+              {{ form.title.label_tag }}
+              {{ form.title }}
+            </div>
+
+            <div class="mb-3">
+              {{ form.company.label_tag }}
+              {{ form.company }}
+            </div>
+
+            <div class="mb-3">
+              {{ form.location.label_tag }}
+              <div class="input-group">
+                {{ form.location }}
+                <button type="button" id="use-my-location" class="btn btn-outline-secondary" title="Use your current location">Use my location</button>
+              </div>
+              <div class="form-text">Type an address, city, or landmark. Coordinates will be filled automatically.</div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.description.label_tag }}
+              {{ form.description }}
+              <div class="form-text">Give a short summary (responsibilities, stack, remote/hybrid).</div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                {{ form.salary_min.label_tag }}
+                {{ form.salary_min }}
+              </div>
+              <div class="col-md-6">
+                {{ form.salary_max.label_tag }}
+                {{ form.salary_max }}
+              </div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.visa_sponsorship.label_tag }}
+              {{ form.visa_sponsorship }}
+            </div>
+
+            {{ form.latitude }}
+            {{ form.longitude }}
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary" type="submit">Post job</button>
+              <a class="btn btn-outline-secondary" href="{% url 'home:index' %}">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Ensure Django-rendered inputs get Bootstrap classes for consistent styling
+(function applyBootstrapClasses(){
+  const fieldSelectors = ['input[type="text"]','input[type="number"]','textarea','select'];
+  fieldSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      if (!el.classList.contains('form-control') && el.type !== 'hidden') {
+        el.classList.add('form-control');
+      }
+    });
+  });
+  // Select elements should get form-select
+  document.querySelectorAll('select').forEach(s => {
+    if (!s.classList.contains('form-select')) s.classList.add('form-select');
+  });
+})();
+
+// Geocoding helper used for both 'Use my location' and submit fallback
+async function geocodeQuery(q){
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.length) return data[0];
+  }catch(e){
+    console.warn('Geocode error', e);
+  }
+  return null;
+}
+
+// Attach handlers
+const form = document.querySelector('form');
+const locFld = document.querySelector('[name="location"]');
+const latFld = document.querySelector('[name="latitude"]');
+const lonFld = document.querySelector('[name="longitude"]');
+const useBtn = document.getElementById('use-my-location');
+
+if (useBtn) {
+  useBtn.addEventListener('click', async () => {
+    if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
+    useBtn.disabled = true;
+    useBtn.textContent = 'Locating...';
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const {latitude, longitude} = pos.coords;
+      if (latFld) latFld.value = latitude;
+      if (lonFld) lonFld.value = longitude;
+      // reverse geocode to fill human-readable location
+      try{
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+        const r = await fetch(url);
+        const j = await r.json();
+        if (j && j.display_name && locFld) locFld.value = j.display_name;
+      }catch(e){/* ignore */}
+      useBtn.textContent = 'Use my location';
+      useBtn.disabled = false;
+    }, err => {
+      useBtn.disabled = false;
+      useBtn.textContent = 'Use my location';
+      alert('Unable to retrieve your location.');
+    }, {timeout:10000});
+  });
+}
+
+// On submit, if coords empty but location present, try to geocode first
+if (form) {
+  form.addEventListener('submit', async function(e){
+    if (!locFld) return;
+    if ((latFld && latFld.value) || (lonFld && lonFld.value)) return; // coords present
+    const q = locFld.value.trim();
+    if (!q) return; // no location provided
+    e.preventDefault();
+    const place = await geocodeQuery(q);
+    if (place) {
+      if (latFld) latFld.value = place.lat;
+      if (lonFld) lonFld.value = place.lon;
+    }
+    form.submit();
+  });
+}
+</script>
+
+{% endblock %}

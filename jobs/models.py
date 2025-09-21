@@ -12,6 +12,15 @@ class Job(models.Model):
 	# Optional geographic coordinates (latitude, longitude)
 	latitude = models.FloatField(null=True, blank=True)
 	longitude = models.FloatField(null=True, blank=True)
+	# Salary range (optional)
+	salary_min = models.IntegerField(null=True, blank=True)
+	salary_max = models.IntegerField(null=True, blank=True)
+	# Visa sponsorship options: none, sponsorship available
+	VISA_CHOICES = [
+		('none', 'None'),
+		('sponsor', 'Sponsorship available'),
+	]
+	visa_sponsorship = models.CharField(max_length=32, choices=VISA_CHOICES, default='none')
 
 	def __str__(self):
 		return f"{self.title} @ {self.company or 'Unknown'}"
