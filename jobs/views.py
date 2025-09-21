@@ -2,18 +2,38 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from .models import Job, Application
 from django import forms
+from django.db.models import Case, When, Value, IntegerField, F
 
 
 def search(request):
 	# Collect query params
-	q = request.GET.get('q', '')
-	location = request.GET.get('location', '')
+	q = request.GET.get('q', '').strip()
+	location = request.GET.get('location', '').strip()
 	salary_min = request.GET.get('salary_min', '')
 	salary_max = request.GET.get('salary_max', '')
 	work_type = request.GET.get('work_type', '')
 	visa = request.GET.get('visa_sponsorship', '')
+	# Base queryset
+	qs = Job.objects.all()
 
-	# Placeholder: in future, you'd query Job model. For now echo the filters.
+	# Apply location filter if provided
+	if location:
+		qs = qs.filter(location__icontains=location)
+
+	# If there's a query string, compute a simple relevance rank and order by it
+	if q:
+		# annotate score parts and sum them
+		qs = qs.annotate(
+			title_match=Case(When(title__icontains=q, then=Value(3)), default=Value(0), output_field=IntegerField()),
+			company_match=Case(When(company__icontains=q, then=Value(2)), default=Value(0), output_field=IntegerField()),
+			desc_match=Case(When(description__icontains=q, then=Value(1)), default=Value(0), output_field=IntegerField()),
+		).annotate(rank=F('title_match') + F('company_match') + F('desc_match'))
+
+		qs = qs.order_by('-rank', '-posted_at')
+	else:
+		# default: most recently posted first
+		qs = qs.order_by('-posted_at')
+
 	context = {
 		'q': q,
 		'location': location,
@@ -21,6 +41,7 @@ def search(request):
 		'salary_max': salary_max,
 		'work_type': work_type,
 		'visa': visa,
+		'jobs': qs,
 	}
 	return render(request, 'jobs/search_results.html', context)
 
