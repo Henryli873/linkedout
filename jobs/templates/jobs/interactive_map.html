@@ -83,10 +83,13 @@ function addJobsToMap(map, jobs, center=null, radiusMiles=null) {
       inside = d <= radiusMiles + 1e-6;
     }
 
-    const icon = inside ? redIcon : defaultIcon;
-    const marker = L.marker([j.lat, j.lon], {icon}).bindPopup(`<strong>${j.title}</strong><br>${j.company}<br>${j.distance_miles} miles away<br><a href='/search/${j.id}/'>View</a> <a href='/search/${j.id}/apply/'>Apply</a>`);
-    marker.addTo(layer);
-    markers.push(marker);
+  // Ensure lat/lon are numbers (some backends return strings)
+  const lat = Number(j.lat);
+  const lon = Number(j.lon);
+  const color = inside ? '#d9534f' : '#007bff'; // red or blue
+  const marker = L.circleMarker([lat, lon], {radius:8, color:color, fillColor:color, fillOpacity:0.9}).bindPopup(`<strong>${j.title}</strong><br>${j.company}<br>${j.distance_miles} miles away<br><a href='/search/${j.id}/'>View</a> <a href='/search/${j.id}/apply/'>Apply</a>`);
+  marker.addTo(layer);
+  markers.push(marker);
   });
 
   layer.addTo(map);
@@ -95,6 +98,18 @@ function addJobsToMap(map, jobs, center=null, radiusMiles=null) {
     const group = L.featureGroup(markers);
     map.fitBounds(group.getBounds().pad(0.5));
   }
+}
+
+// Add a small legend to explain marker colors
+function addMapLegend(map) {
+  const legend = L.control({position: 'bottomright'});
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'info legend bg-white p-2 shadow-sm');
+    div.innerHTML = '<div><span style="display:inline-block;width:12px;height:12px;background:#d9534f;margin-right:6px;border-radius:50%"></span>Within radius</div>' +
+                    '<div class="mt-1"><span style="display:inline-block;width:12px;height:12px;background:#007bff;margin-right:6px;border-radius:50%"></span>Outside radius</div>';
+    return div;
+  };
+  legend.addTo(map);
 }
 
 async function fetchNearby(lat, lon, radius_miles=5, q='') {
@@ -107,6 +122,8 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   const map = createMap();
   // ensure initial view
   map.setView([20,0], 2);
+  // add legend explaining marker colors
+  addMapLegend(map);
   let userMarker = null;
   let userCircle = null;
   let searchMarker = null;

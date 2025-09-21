@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>My Postings</h2>
+  <p class="text-muted">Manage your job postings. Click a title to view or Edit to update the post.</p>
+  {% if jobs and jobs.exists %}
+  <div class="list-group">
+    {% for job in jobs %}
+      <div class="list-group-item d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-1"><a href="{% url 'jobs:job_detail' job.pk %}">{{ job.title }}</a></h5>
+          <p class="mb-1 text-muted small">{{ job.location }} • Posted {{ job.posted_at|date:"M j, Y" }}</p>
+        </div>
+        <div>
+          <a class="btn btn-sm btn-outline-primary me-2" href="{% url 'jobs:edit_post' job.pk %}">Edit</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="alert alert-info">You have no postings yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

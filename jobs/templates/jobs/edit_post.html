@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h3 class="card-title mb-3">Edit Job: {{ job.title }}</h3>
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-3">
+              {{ form.title.label_tag }}
+              {{ form.title }}
+            </div>
+
+            <div class="mb-3">
+              {{ form.company.label_tag }}
+              {{ form.company }}
+            </div>
+
+            <div class="mb-3">
+              {{ form.location.label_tag }}
+              <div class="input-group">
+                {{ form.location }}
+                <button type="button" id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
+              </div>
+              <div class="form-text">Type an address or city. Coordinates will be populated automatically.</div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.description.label_tag }}
+              {{ form.description }}
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">{{ form.salary_min.label_tag }}{{ form.salary_min }}</div>
+              <div class="col-md-6">{{ form.salary_max.label_tag }}{{ form.salary_max }}</div>
+            </div>
+
+            <div class="mb-3">{{ form.visa_sponsorship.label_tag }}{{ form.visa_sponsorship }}</div>
+
+            {{ form.latitude }}
+            {{ form.longitude }}
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary" type="submit">Save</button>
+              <a class="btn btn-outline-secondary" href="{% url 'jobs:my_postings' %}">Back</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Apply Bootstrap form classes to rendered inputs
+(function(){
+  const selectors = ['input[type="text"]','input[type="number"]','textarea','select'];
+  selectors.forEach(sel => document.querySelectorAll(sel).forEach(el => {
+    if (!el.classList.contains('form-control') && el.type !== 'hidden') el.classList.add('form-control');
+  }));
+  document.querySelectorAll('select').forEach(s => { if (!s.classList.contains('form-select')) s.classList.add('form-select'); });
+})();
+
+async function geocode(q){
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
+    const r = await fetch(url);
+    const data = await r.json();
+    if (data && data.length) return data[0];
+  }catch(e){console.warn(e)}
+  return null;
+}
+
+const form = document.querySelector('form');
+const locFld = document.querySelector('[name="location"]');
+const latFld = document.querySelector('[name="latitude"]');
+const lonFld = document.querySelector('[name="longitude"]');
+const useBtn = document.getElementById('use-my-location');
+
+if (useBtn){
+  useBtn.addEventListener('click', ()=>{
+    if (!navigator.geolocation) return alert('Geolocation not supported');
+    useBtn.disabled = true; useBtn.textContent = 'Locating...';
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      if (latFld) latFld.value = lat; if (lonFld) lonFld.value = lon;
+      try{ const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`); const j = await rev.json(); if (j.display_name && locFld) locFld.value = j.display_name; }catch(e){}
+      useBtn.disabled = false; useBtn.textContent = 'Use my location';
+    }, err => { useBtn.disabled=false; useBtn.textContent='Use my location'; alert('Unable to access location'); }, {timeout:10000});
+  });
+}
+
+if (form){
+  form.addEventListener('submit', async function(e){
+    if (!locFld) return;
+    if ((latFld && latFld.value) || (lonFld && lonFld.value)) return; // already have coords
+    const q = locFld.value.trim(); if (!q) return;
+    e.preventDefault();
+    const place = await geocode(q);
+    if (place){ if (latFld) latFld.value = place.lat; if (lonFld) lonFld.value = place.lon; }
+    form.submit();
+  });
+}
+</script>
+
+{% endblock %}
