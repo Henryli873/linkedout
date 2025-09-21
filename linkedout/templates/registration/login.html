@@ -5,7 +5,7 @@
 {% block content %}
   <div class="container mt-4" style="max-width:480px;">
     <h2>Login</h2>
-    <form method="post">
+  <form method="post">
       {% csrf_token %}
       <div class="mb-3">
         <label for="id_username" class="form-label">Username</label>
@@ -15,7 +15,37 @@
         <label for="id_password" class="form-label">Password</label>
         {{ form.password }}
       </div>
+      {% if form.non_field_errors %}
+        <div id="login-error-alert" class="mb-3" style="max-width:100%;">
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {% for err in form.non_field_errors %}{{ err }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        </div>
+      {% endif %}
       <button class="btn btn-primary" type="submit">Login</button>
     </form>
   </div>
+  {% if form.non_field_errors %}
+    <script>
+      // Auto-dismiss after 4 seconds using Bootstrap Alert API if available
+      setTimeout(function(){
+        try {
+          if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+            var alertEl = document.querySelector('#login-error-alert .alert');
+            if (alertEl) {
+              var bsAlert = bootstrap.Alert.getOrCreateInstance(alertEl);
+              bsAlert.close();
+            }
+          } else {
+            var el = document.getElementById('login-error-alert');
+            if (el) el.style.display = 'none';
+          }
+        } catch(e) {
+          var el = document.getElementById('login-error-alert');
+          if (el) el.style.display = 'none';
+        }
+      }, 4000);
+    </script>
+  {% endif %}
 {% endblock %}
