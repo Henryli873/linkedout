@@ -4,7 +4,41 @@
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center">
     <h2>Search results</h2>
-    <div class="text-muted small">{{ jobs.count }} results</div>
+    <div class="text-muted small">{{ jobs|length }} results</div>
+  </div>
+
+  <!-- Filters tab -->
+  <div class="card mt-3">
+    <div class="card-body">
+      <form id="filters-form" method="get" class="row gx-2 gy-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label small">Query</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="keywords">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small">Location</label>
+          <input id="filter-location" type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, address or ZIP">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small">Distance</label>
+          <select id="filter-radius" name="radius" class="form-select form-select-sm">
+            <option value="">Any</option>
+            <option value="5">Within 5 miles</option>
+            <option value="10">Within 10 miles</option>
+            <option value="25">Within 25 miles</option>
+            <option value="50">Within 50 miles</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <input id="filter-lat" type="hidden" name="lat" value="">
+          <input id="filter-lon" type="hidden" name="lon" value="">
+          <button id="use-my-location-filter" class="btn btn-outline-secondary btn-sm">Use my location</button>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   {% if jobs %}
@@ -36,4 +70,81 @@
     <a href="/" class="btn btn-secondary">Back home</a>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const useBtn = document.getElementById('use-my-location-filter');
+  const latInput = document.getElementById('filter-lat');
+  const lonInput = document.getElementById('filter-lon');
+  const locInput = document.getElementById('filter-location');
+  const radiusSelect = document.getElementById('filter-radius');
+
+  // preserve selected radius if present in query string
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('radius')) {
+    radiusSelect.value = params.get('radius');
+  }
+  if (params.get('lat')) latInput.value = params.get('lat');
+  if (params.get('lon')) lonInput.value = params.get('lon');
+
+  useBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    if (!navigator.geolocation) return alert('Geolocation not supported in this browser');
+    useBtn.disabled = true;
+    useBtn.textContent = 'Detecting...';
+    navigator.geolocation.getCurrentPosition(async function(pos){
+      const lat = pos.coords.latitude.toFixed(6);
+      const lon = pos.coords.longitude.toFixed(6);
+      latInput.value = lat;
+      lonInput.value = lon;
+      // try a reverse-geocode to produce a human readable location string
+      try {
+        const revRes = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon);
+        const rev = await revRes.json();
+        if (rev && rev.display_name) {
+          locInput.value = rev.display_name;
+        } else if (rev && rev.address) {
+          // build a concise name from parts
+          const a = rev.address;
+          const parts = [a.city || a.town || a.village || a.hamlet, a.state, a.country].filter(Boolean);
+          if (parts.length) locInput.value = parts.join(', ');
+        } else {
+          locInput.value = '';
+        }
+      } catch (e) {
+        // If reverse geocode fails, fall back to a small label but do not submit a literal 'Current location'
+        locInput.value = '';
+      }
+      // re-enable and submit the form
+      useBtn.disabled = false;
+      useBtn.textContent = 'Use my location';
+      document.getElementById('filters-form').submit();
+    }, function(err){
+      useBtn.disabled = false;
+      useBtn.textContent = 'Use my location';
+      alert('Unable to get your location: ' + (err.message || err.code));
+    });
+  });
+
+  // When submitting, if a location text exists but lat/lon empty, attempt client-side geocode via Nominatim
+  document.getElementById('filters-form').addEventListener('submit', async function(e){
+    const loc = locInput.value.trim();
+    if (loc && !latInput.value && !lonInput.value) {
+      // try geocoding
+      try {
+        const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(loc));
+        const data = await res.json();
+        if (data && data[0]) {
+          latInput.value = data[0].lat;
+          lonInput.value = data[0].lon;
+        }
+      } catch (e) {
+        // ignore geocode failures and let server fallback to substring location match
+      }
+    }
+  });
+});
+</script>
 {% endblock %}
