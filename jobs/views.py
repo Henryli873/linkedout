@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import Job, Application
 from django import forms
+from django.http import HttpResponseForbidden
 from django.db.models import Case, When, Value, IntegerField, F
 
 
@@ -91,3 +92,52 @@ def apply(request, pk):
 
 def apply_thanks(request):
 	return render(request, 'jobs/apply_thanks.html')
+
+@login_required
+def my_applications(request):
+    """Candidate sees their own applications."""
+    apps = Application.objects.filter(user=request.user).select_related("job")
+    return render(request, "jobs/my_applications.html", {"applications": apps})
+
+
+@login_required
+def application_details(request, pk):
+    """Candidate sees details of their application."""
+    app = get_object_or_404(Application, pk=pk, user=request.user)
+    return render(request, "jobs/application_details.html", {"application": app})
+
+
+@login_required
+def recruiter_applications(request):
+    """Recruiters see applications for their company postings."""
+    if not request.user.is_recruiter:
+        return HttpResponseForbidden("You are not authorized.")
+
+    # Assuming recruiter's company is stored in their profile/username for now:
+    apps = Application.objects.filter(job__company__icontains=request.user.username).select_related("job", "user")
+    return render(request, "jobs/recruiter_applications.html", {"applications": apps})
+
+
+class ApplicationStatusForm(forms.ModelForm):
+    class Meta:
+        model = Application
+        fields = ["status"]
+
+
+@login_required
+def update_application_status(request, pk):
+    """Recruiter updates status of an application."""
+    if not request.user.is_recruiter:
+        return HttpResponseForbidden("Not allowed")
+
+    app = get_object_or_404(Application, pk=pk)
+
+    if request.method == "POST":
+        form = ApplicationStatusForm(request.POST, instance=app)
+        if form.is_valid():
+            form.save()
+            return redirect("jobs:recruiter_applications")
+    else:
+        form = ApplicationStatusForm(instance=app)
+
+    return render(request, "jobs/update_status.html", {"form": form, "application": app})

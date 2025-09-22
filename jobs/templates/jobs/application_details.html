@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Application Details{% endblock %}
+{% block content %}
+<h2>{{ application.job.title }} at {{ application.job.company }}</h2>
+<p><strong>Status:</strong> {{ application.get_status_display }}</p>
+<p><strong>Applied at:</strong> {{ application.applied_at|date:"Y-m-d H:i" }}</p>
+
+{% if application.cover_letter_text %}
+    <h5>Cover Letter</h5>
+    <p>{{ application.cover_letter_text }}</p>
+{% endif %}
+
+{% if application.cover_letter_file %}
+    <p><a href="{{ application.cover_letter_file.url }}" target="_blank">Download uploaded cover letter</a></p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}My Applications{% endblock %}
+{% block content %}
+<h2>My Applications</h2>
+<table class="table">
+    <thead>
+        <tr><th>Job</th><th>Company</th><th>Status</th><th>Date</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for app in applications %}
+        <tr>
+            <td>{{ app.job.title }}</td>
+            <td>{{ app.job.company }}</td>
+            <td>{{ app.get_status_display }}</td>
+            <td>{{ app.applied_at|date:"Y-m-d H:i" }}</td>
+            <td><a href="{% url 'jobs:application_details' app.pk %}" class="btn btn-sm btn-outline-primary">Details</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">No applications yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
