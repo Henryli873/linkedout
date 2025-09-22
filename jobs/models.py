@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from accounts.forms import User
 
 
 class Job(models.Model):
@@ -21,6 +22,7 @@ class Job(models.Model):
 		('sponsor', 'Sponsorship available'),
 	]
 	visa_sponsorship = models.CharField(max_length=32, choices=VISA_CHOICES, default='none')
+	owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="jobs", null=True, blank=True)
 
 	def __str__(self):
 		return f"{self.title} @ {self.company or 'Unknown'}"
