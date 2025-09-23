@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from accounts.forms import User
+from django.contrib.auth.models import User
 
 
 class Job(models.Model):

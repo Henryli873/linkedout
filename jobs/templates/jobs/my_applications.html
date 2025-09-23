@@ -12,7 +12,7 @@
             <td>{{ app.job.title }}</td>
             <td>{{ app.job.company }}</td>
             <td>{{ app.get_status_display }}</td>
-            <td>{{ app.applied_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ app.submitted_at|date:"Y-m-d H:i" }}</td>
             <td><a href="{% url 'jobs:application_details' app.pk %}" class="btn btn-sm btn-outline-primary">Details</a></td>
         </tr>
         {% empty %}
