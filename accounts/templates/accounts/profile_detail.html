@@ -10,23 +10,33 @@
       {% endif %}
       <div>
         <h2 class="mb-0">{{ profile_user.get_full_name|default:profile_user.username }}</h2>
-        {% if profile and profile.headline %}<div class="text-muted">{{ profile.headline }}</div>{% endif %}
+        {# Show headline to owner/non-recruiter, or to recruiter only when headline_visible is True #}
+        {% if profile and profile.headline %}
+          {% if not viewer_is_recruiter|default:False or profile.headline_visible %}
+            <div class="text-muted">{{ profile.headline }}</div>
+          {% endif %}
+        {% endif %}
       </div>
     </div>
 
     {% if profile %}
-      {% if not request.user.is_authenticated or not request.user.is_recruiter %}
-        {# Non-recruiters and anonymous users see full profile (owner controls privacy only for recruiters) #}
-        <p>{{ profile.bio|linebreaks }}</p>
+      {% if not viewer_is_recruiter|default:False %}
+        {% if profile.bio %}<p>{{ profile.bio|linebreaks }}</p>{% endif %}
 
-        <h5>Skills</h5>
-        <p>{{ profile.skills }}</p>
+        {% if profile.skills %}
+          <h5>Skills</h5>
+          <p>{{ profile.skills }}</p>
+        {% endif %}
 
-        <h5>Experience</h5>
-        <p>{{ profile.experience|linebreaks }}</p>
+        {% if profile.experience %}
+          <h5>Experience</h5>
+          <p>{{ profile.experience|linebreaks }}</p>
+        {% endif %}
 
-        <h5>Education</h5>
-        <p>{{ profile.education|linebreaks }}</p>
+        {% if profile.education %}
+          <h5>Education</h5>
+          <p>{{ profile.education|linebreaks }}</p>
+        {% endif %}
 
         <h5>Links</h5>
         <ul>
@@ -36,19 +46,26 @@
         </ul>
 
         {% if profile.is_recruiter %}
-          <h5>Company</h5>
-          <p>{{ profile.company }}</p>
+          {% if profile.company %}
+            <h5>Company</h5>
+            <p>{{ profile.company }}</p>
+          {% endif %}
         {% else %}
-          <h5>Desired Positions</h5>
-          <p>{{ profile.desired_positions }}</p>
-          <h5>Desired Companies</h5>
-          <p>{{ profile.desired_companies }}</p>
+          {% if profile.desired_positions %}
+            <h5>Desired Positions</h5>
+            <p>{{ profile.desired_positions }}</p>
+          {% endif %}
+          {% if profile.desired_companies %}
+            <h5>Desired Companies</h5>
+            <p>{{ profile.desired_companies }}</p>
+          {% endif %}
         {% endif %}
+
       {% else %}
-        {# Recruiter view: only show sections the user marked visible #}
         {% if profile.headline_visible and profile.headline %}
           <div class="mb-2"><strong>{{ profile.headline }}</strong></div>
         {% endif %}
+
         {% if profile.bio_visible and profile.bio %}
           <p>{{ profile.bio|linebreaks }}</p>
         {% endif %}
@@ -87,7 +104,7 @@
           <p>{{ profile.desired_positions }}</p>
         {% endif %}
 
-        {% if not profile.is_recruiter and profile.desired_positions_visible and profile.desired_companies %}
+        {% if not profile.is_recruiter and profile.desired_companies_visible and profile.desired_companies %}
           <h5>Desired Companies</h5>
           <p>{{ profile.desired_companies }}</p>
         {% endif %}

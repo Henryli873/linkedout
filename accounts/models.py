@@ -34,6 +34,7 @@ class Profile(models.Model):
 	links_visible = models.BooleanField(default=True)
 	company_visible = models.BooleanField(default=True)
 	desired_positions_visible = models.BooleanField(default=True)
+	desired_companies_visible = models.BooleanField(default=True)
 	phone_visible = models.BooleanField(default=False)
 	email_visible = models.BooleanField(default=False)
 

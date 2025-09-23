@@ -48,32 +48,33 @@ class ProfileForm(forms.ModelForm):
         model = Profile
         fields = [
             'headline', 'bio', 'skills', 'experience', 'education', 'github', 'linkedin', 'website', 'avatar',
-        'company', 'desired_positions', 'desired_companies',
-        'phone',
-        # visibility toggles
-        'headline_visible', 'bio_visible', 'skills_visible', 'experience_visible', 'education_visible',
-        'links_visible', 'company_visible', 'desired_positions_visible', 'phone_visible', 'email_visible',
+            'company', 'desired_positions', 'desired_companies',
+            'phone',
+            # visibility toggles
+            'headline_visible', 'bio_visible', 'skills_visible', 'experience_visible', 'education_visible',
+            'links_visible', 'company_visible', 'desired_positions_visible', 'desired_companies_visible', 'phone_visible', 'email_visible',
         ]
         widgets = {
             'bio': forms.Textarea(attrs={'rows': 4}),
             'experience': forms.Textarea(attrs={'rows': 4}),
             'education': forms.Textarea(attrs={'rows': 3}),
             'skills': forms.TextInput(attrs={'placeholder': 'e.g. Python, Django, SQL'}),
-            'avatar': forms.ClearableFileInput(attrs={'class': 'form-control'})
-            , 'company': forms.TextInput(attrs={'class': 'form-control'}),
+            'avatar': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'company': forms.TextInput(attrs={'class': 'form-control'}),
             'desired_positions': forms.Textarea(attrs={'rows': 2, 'placeholder': 'e.g. Backend Engineer, Data Analyst'}),
             'desired_companies': forms.Textarea(attrs={'rows': 2, 'placeholder': 'e.g. Acme Inc, OpenAI'}),
-        'phone': forms.TextInput(attrs={'class': 'form-control'}),
-        'headline_visible': forms.CheckboxInput(),
-        'bio_visible': forms.CheckboxInput(),
-        'skills_visible': forms.CheckboxInput(),
-        'experience_visible': forms.CheckboxInput(),
-        'education_visible': forms.CheckboxInput(),
-        'links_visible': forms.CheckboxInput(),
-        'company_visible': forms.CheckboxInput(),
-        'desired_positions_visible': forms.CheckboxInput(),
-        'phone_visible': forms.CheckboxInput(),
-        'email_visible': forms.CheckboxInput(),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'headline_visible': forms.CheckboxInput(),
+            'bio_visible': forms.CheckboxInput(),
+            'skills_visible': forms.CheckboxInput(),
+            'experience_visible': forms.CheckboxInput(),
+            'education_visible': forms.CheckboxInput(),
+            'links_visible': forms.CheckboxInput(),
+            'company_visible': forms.CheckboxInput(),
+            'desired_positions_visible': forms.CheckboxInput(),
+            'desired_companies_visible': forms.CheckboxInput(),
+            'phone_visible': forms.CheckboxInput(),
+            'email_visible': forms.CheckboxInput(),
         }
 
     # Expose the email for editing on the profile form (pre-filled in view)

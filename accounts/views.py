@@ -36,12 +36,29 @@ def profile_detail(request, username):
 
 	User = get_user_model()
 	user = get_object_or_404(User, username=username)
+
 	profile = None
 	try:
 		profile = user.profile
 	except Profile.DoesNotExist:
 		profile = None
-	return render(request, 'accounts/profile_detail.html', {'profile': profile, 'profile_user': user})
+
+	# Determine whether the current viewer should be treated as a recruiter.
+	# Owner always sees full profile; anonymous and non-recruiter viewers see full profile.
+	# Only other authenticated users who are recruiters are considered viewer recruiters.
+	viewer_is_recruiter = False
+	if request.user.is_authenticated and request.user != user:
+		try:
+			viewer_profile = request.user.profile
+			viewer_is_recruiter = bool(getattr(viewer_profile, 'is_recruiter', False))
+		except Profile.DoesNotExist:
+			viewer_is_recruiter = False
+
+	return render(request, 'accounts/profile_detail.html', {
+		'profile': profile,
+		'profile_user': user,
+		'viewer_is_recruiter': viewer_is_recruiter,
+	})
 
 
 def signup(request):
@@ -70,4 +87,5 @@ class CustomLoginView(LoginView):
 		try:
 			return reverse('accounts:profile_detail', kwargs={'username': user.username})
 		except Exception:
+			return super().get_success_url()
 			return super().get_success_url()
