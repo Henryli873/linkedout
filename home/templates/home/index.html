@@ -9,7 +9,14 @@
             <p class="col-md-8 fs-4">
                 Your journey to a new career starts here. Search for jobs, view opportunities on a map, and track your applications all in one place.
             </p>
-            <a href="#" class="btn btn-primary btn-lg" type="button">Start Searching Now</a>
+                                    {% if request.user.is_authenticated %}
+                                        <a href="{% url 'jobs:search' %}" class="btn btn-primary btn-lg" type="button">Start Searching Now</a>
+                                    {% else %}
+                                        <a href="{% url 'login' %}?next={% url 'jobs:search' %}" class="btn btn-primary btn-lg" type="button">Start Searching Now</a>
+                                    {% endif %}
+                        {% if request.user.is_authenticated and user_profile and user_profile.is_recruiter %}
+                            <a href="{% url 'jobs:post_job' %}" class="btn btn-success btn-lg ms-2">Post a job</a>
+                        {% endif %}
         </div>
     </div>
 {% endblock %}
