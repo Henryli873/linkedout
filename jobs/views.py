@@ -242,12 +242,16 @@ def application_details(request, pk):
 
 @login_required
 def recruiter_applications(request):
-    """Recruiters see applications for their company postings."""
-    if not request.user.is_recruiter:
+    """Recruiters see applications for jobs they posted."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
         return HttpResponseForbidden("You are not authorized.")
 
-    # Assuming recruiter's company is stored in their profile/username for now:
-    apps = Application.objects.filter(job__company__icontains=request.user.username).select_related("job", "user")
+    apps = (
+        Application.objects.filter(job__owner=request.user)
+        .select_related("job", "user")
+        .order_by("-submitted_at")
+    )
     return render(request, "jobs/recruiter_applications.html", {"applications": apps})
 
 
@@ -260,7 +264,8 @@ class ApplicationStatusForm(forms.ModelForm):
 @login_required
 def update_application_status(request, pk):
     """Recruiter updates status of an application."""
-    if not request.user.is_recruiter:
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
         return HttpResponseForbidden("Not allowed")
 
     app = get_object_or_404(Application, pk=pk)

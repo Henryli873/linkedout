@@ -88,4 +88,4 @@ class CustomLoginView(LoginView):
 			return reverse('accounts:profile_detail', kwargs={'username': user.username})
 		except Exception:
 			return super().get_success_url()
-			return super().get_success_url()
+			
