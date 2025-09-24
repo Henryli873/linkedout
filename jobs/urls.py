@@ -5,6 +5,7 @@ app_name = 'jobs'
 
 urlpatterns = [
     path('', views.search, name='search'),
+    path("suggested/", views.suggest_jobs, name="suggested_jobs"),
     path('post/', views.post_job, name='post_job'),
     path('my-postings/', views.my_postings, name='my_postings'),
     path('<int:pk>/', views.job_detail, name='job_detail'),

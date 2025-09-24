@@ -14,7 +14,6 @@ except Exception:
 import urllib.parse
 import urllib.request
 import json
-from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from math import radians, cos, sin, asin, sqrt
 import re
@@ -149,6 +148,36 @@ def search(request):
 def job_detail(request, pk):
 	job = get_object_or_404(Job, pk=pk)
 	return render(request, 'jobs/job_detail.html', {'job': job})
+
+@login_required
+def suggest_jobs(request):
+    """Suggest jobs based on the logged-in user's skills."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or profile.is_recruiter:
+        # recruiters don’t get suggestions
+        return redirect("jobs:search")
+
+    skills_str = profile.skills or ""
+    skills = [s.strip() for s in skills_str.split(",") if s.strip()]
+
+    if not skills:
+        jobs = Job.objects.none()
+    else:
+        # Build OR query across all skills
+        query = Q()
+        for skill in skills:
+            # break "Software Engineering" into ["Software", "Engineering"]
+            words = skill.split()
+            for word in words:
+                query |= (
+                    Q(title__icontains=word) |
+                    Q(description__icontains=word) |
+                    Q(company__icontains=word)
+                )
+
+        jobs = Job.objects.filter(query).order_by("-posted_at").distinct()
+
+    return render(request, "jobs/suggested_jobs.html", {"jobs": jobs, "skills": skills})
 
 
 class ApplicationForm(forms.ModelForm):
