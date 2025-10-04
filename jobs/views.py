@@ -271,7 +271,7 @@ def application_details(request, pk):
 
 @login_required
 def recruiter_applications(request):
-    """Recruiters see applications for jobs they posted."""
+    """Recruiters see applications for jobs they posted in a Kanban board."""
     profile = getattr(request.user, "profile", None)
     if not profile or not profile.is_recruiter:
         return HttpResponseForbidden("You are not authorized.")
@@ -279,9 +279,30 @@ def recruiter_applications(request):
     apps = (
         Application.objects.filter(job__owner=request.user)
         .select_related("job", "user")
-        .order_by("-submitted_at")
+        .order_by("status", "-submitted_at")
     )
-    return render(request, "jobs/recruiter_applications.html", {"applications": apps})
+
+    status_choices = list(Application.STATUS_CHOICES)
+
+    # Build columns structure for easy templating
+    columns = [{"key": key, "label": label, "apps": []} for key, label in status_choices]
+    col_index = {c["key"]: c for c in columns}
+
+    for app in apps:
+        if app.status in col_index:
+            col_index[app.status]["apps"].append(app)
+        else:
+            # if somehow an unknown status sneaks in, create a catch-all
+            if "_unknown" not in col_index:
+                columns.append({"key": "_unknown", "label": "Unknown", "apps": []})
+                col_index["_unknown"] = columns[-1]
+            col_index["_unknown"]["apps"].append(app)
+
+    context = {
+        "status_choices": status_choices,
+        "columns": columns,
+    }
+    return render(request, "jobs/recruiter_applications.html", context)
 
 
 class ApplicationStatusForm(forms.ModelForm):
@@ -308,6 +329,35 @@ def update_application_status(request, pk):
         form = ApplicationStatusForm(instance=app)
 
     return render(request, "jobs/update_status.html", {"form": form, "application": app})
+
+@login_required
+def recruiter_update_application_status_ajax(request):
+    """AJAX endpoint to update application status from Kanban."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
+        return JsonResponse({"error": "Not authorized"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    app_id = request.POST.get("app_id")
+    new_status = request.POST.get("status")
+
+    valid_statuses = {k for k, _ in Application.STATUS_CHOICES}
+    if not app_id or new_status not in valid_statuses:
+        return JsonResponse({"error": "Invalid parameters"}, status=400)
+
+    try:
+        app = Application.objects.select_related("job").get(pk=app_id)
+    except Application.DoesNotExist:
+        return JsonResponse({"error": "Application not found"}, status=404)
+
+    if app.job.owner != request.user:
+        return JsonResponse({"error": "Not authorized for this application"}, status=403)
+
+    app.status = new_status
+    app.save(update_fields=["status"])
+
+    return JsonResponse({"ok": True, "status": new_status})
 
 
 def interactive_map(request):

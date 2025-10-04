@@ -12,6 +12,10 @@ class Profile(models.Model):
 	github = models.URLField(blank=True)
 	linkedin = models.URLField(blank=True)
 	website = models.URLField(blank=True)
+	# Optional profile location (with optional geocoded coordinates)
+	location = models.CharField(max_length=255, blank=True)
+	latitude = models.FloatField(null=True, blank=True)
+	longitude = models.FloatField(null=True, blank=True)
 	avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
 	# Recruiter flag and company when applicable
 	is_recruiter = models.BooleanField(default=False)

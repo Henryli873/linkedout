@@ -1,24 +1,158 @@
 {% extends "base.html" %}
-{% block title %}Recruiter Applications{% endblock %}
+{% block title %}Manage Applications (Kanban){% endblock %}
+
 {% block content %}
-<h2>Applications for My Jobs</h2>
-<table class="table">
-    <thead>
-        <tr><th>Candidate</th><th>Job</th><th>Status</th><th>Actions</th></tr>
-    </thead>
-    <tbody>
-        {% for app in applications %}
-        <tr>
-            <td>{{ app.user.username }}</td>
-            <td>{{ app.job.title }}</td>
-            <td>{{ app.get_status_display }}</td>
-            <td>
-                <a href="{% url 'jobs:update_status' app.pk %}" class="btn btn-sm btn-outline-secondary">Update Status</a>
-            </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4">No applications received yet.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+<h2 class="mb-3">Applications Kanban</h2>
+<p class="text-muted">Drag applicant cards between stages to update their status.</p>
+
+<div class="kanban-container d-flex gap-3 overflow-auto">
+  {% for col in columns %}
+    <div class="kanban-column card flex-shrink-0" style="width: 280px;" data-status="{{ col.key }}">
+      <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center">
+        <span>{{ col.label }}</span>
+        <span class="badge bg-secondary count-badge">0</span>
+      </div>
+      <div class="card-body p-2">
+        <div class="kanban-dropzone" style="min-height: 60vh;">
+          {% for app in col.apps %}
+            <div class="kanban-card card mb-2" draggable="true" data-app-id="{{ app.id }}">
+              <div class="card-body py-2 px-2">
+                <div class="fw-semibold">{{ app.user.get_full_name|default:app.user.username }}</div>
+                <div class="text-muted small">{{ app.job.title }}</div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted small px-2 py-2 empty-placeholder">No applications</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split('; ' + name + '=');
+    if (parts.length === 2) return parts.pop().split(';').shift();
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  // Enable drag and drop
+  const cards = document.querySelectorAll('.kanban-card');
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', card.dataset.appId);
+      // add a class for visual feedback
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  });
+
+  const columns = document.querySelectorAll('.kanban-column');
+  columns.forEach(col => {
+    const dropzone = col.querySelector('.kanban-dropzone');
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('drag-over');
+    });
+    dropzone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const appId = e.dataTransfer.getData('text/plain');
+      if (!appId) return;
+
+      const targetStatus = col.dataset.status;
+      const card = document.querySelector(`.kanban-card[data-app-id="${appId}"]`);
+      if (!card) return;
+
+      // If already in this column, skip server call
+      const fromCol = card.closest('.kanban-column');
+      if (fromCol && fromCol.dataset.status === targetStatus) return;
+
+      // Optimistic UI: move card visually
+      const previousParent = card.parentElement;
+      const previousPlaceholder = fromCol.querySelector('.empty-placeholder');
+      dropzone.appendChild(card);
+
+      // Remove empty placeholder if present
+      const placeholder = dropzone.querySelector('.empty-placeholder');
+      if (placeholder) placeholder.remove();
+
+      updateCounts();
+
+      // Persist via AJAX
+      try {
+        const params = new URLSearchParams();
+        params.append('app_id', appId);
+        params.append('status', targetStatus);
+        const res = await fetch("{% url 'jobs:recruiter_update_status_ajax' %}", {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrftoken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body: params.toString()
+        });
+        if (!res.ok) {
+          throw new Error('Server rejected update');
+        }
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Unknown error');
+      } catch (err) {
+        // Revert on failure
+        if (previousParent) previousParent.appendChild(card);
+        if (dropzone.children.length === 0) {
+          addEmptyPlaceholder(dropzone);
+        }
+        if (previousParent && previousParent.children.length === 0) {
+          addEmptyPlaceholder(previousParent);
+        }
+        updateCounts();
+        alert('Failed to update status: ' + (err.message || err));
+      }
+    });
+  });
+
+  function addEmptyPlaceholder(zone){
+    const div = document.createElement('div');
+    div.className = 'text-muted small px-2 py-2 empty-placeholder';
+    div.textContent = 'No applications';
+    zone.appendChild(div);
+  }
+
+  function updateCounts() {
+    document.querySelectorAll('.kanban-column').forEach(col => {
+      const count = col.querySelectorAll('.kanban-card').length;
+      const badge = col.querySelector('.count-badge');
+      if (badge) badge.textContent = count;
+      const zone = col.querySelector('.kanban-dropzone');
+      const hasCards = count > 0;
+      const placeholder = zone.querySelector('.empty-placeholder');
+      if (!hasCards && !placeholder) addEmptyPlaceholder(zone);
+      if (hasCards && placeholder) placeholder.remove();
+    });
+  }
+
+  // Initial counts compute
+  updateCounts();
+})();
+</script>
+<style>
+.kanban-dropzone.drag-over {
+  outline: 2px dashed #0d6efd;
+  outline-offset: -6px;
+  border-radius: 6px;
+}
+.kanban-card.dragging {
+  opacity: 0.6;
+}
+</style>
 {% endblock %}

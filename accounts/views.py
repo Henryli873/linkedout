@@ -7,6 +7,9 @@ from .forms import SignUpForm
 from django.contrib.auth import login
 from django.contrib.auth.views import LoginView
 from django.urls import reverse
+from django.db.models import Q
+from django.http import HttpResponseForbidden
+import re
 
 
 @login_required
@@ -77,6 +80,59 @@ def signup(request):
 		form = SignUpForm()
 	return render(request, 'registration/signup.html', {'form': form})
 
+
+@login_required
+def find_applicants(request):
+	"""Recruiter-only: search applicant profiles by skills, location, and experience."""
+	profile = getattr(request.user, 'profile', None)
+	if not profile or not profile.is_recruiter:
+		return HttpResponseForbidden("You are not authorized.")
+
+	# Query params
+	q = request.GET.get('q', '').strip()
+	skills_q = request.GET.get('skills', '').strip()
+	location = request.GET.get('location', '').strip()
+	experience_q = request.GET.get('experience', '').strip()
+
+	qs = Profile.objects.filter(is_recruiter=False)
+
+	if skills_q:
+		tokens = [t.strip() for t in re.split(r'[,\s]+', skills_q) if t.strip()]
+		if tokens:
+			sq = Q()
+			for t in tokens:
+				sq |= Q(skills__icontains=t)
+			qs = qs.filter(sq)
+
+	if location:
+		# If location field exists, use it; otherwise fall back to searching bio/experience/education
+		try:
+			qs = qs.filter(location__icontains=location)
+		except Exception:
+			qs = qs.filter(Q(bio__icontains=location) | Q(experience__icontains=location) | Q(education__icontains=location))
+
+	if experience_q:
+		qs = qs.filter(experience__icontains=experience_q)
+
+	if q:
+		qs = qs.filter(
+			Q(headline__icontains=q) |
+			Q(bio__icontains=q) |
+			Q(skills__icontains=q) |
+			Q(experience__icontains=q) |
+			Q(education__icontains=q) |
+			Q(company__icontains=q)
+		)
+
+	qs = qs.select_related('user').order_by('user__username')
+
+	return render(request, 'accounts/find_applicants.html', {
+		'profiles': qs,
+		'q': q,
+		'skills': skills_q,
+		'location': location,
+		'experience': experience_q,
+	})
 
 class CustomLoginView(LoginView):
 	template_name = 'registration/login.html'

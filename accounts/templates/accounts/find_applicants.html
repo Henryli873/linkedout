@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Find Applicants{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>Find Applicants</h2>
+    <div class="text-muted small">{{ profiles|length }} results</div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-body">
+      <form method="get" class="row gx-2 gy-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label small">Query</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="keywords">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small">Skills</label>
+          <input type="text" name="skills" value="{{ skills }}" class="form-control form-control-sm" placeholder="e.g. Python, Django">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small">Location</label>
+          <input type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, State or address">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small">Experience</label>
+          <input type="text" name="experience" value="{{ experience }}" class="form-control form-control-sm" placeholder="e.g. 3 years, internship">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm">Search</button>
+        </div>
+      </form>
+      <div class="form-text mt-1">Tip: separate multiple skills with commas.</div>
+    </div>
+  </div>
+
+  {% if profiles %}
+    <div class="row gy-3 mt-3">
+      {% for p in profiles %}
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body d-flex justify-content-between align-items-start">
+              <div>
+                <h5 class="mb-1">{{ p.user.get_full_name|default:p.user.username }}</h5>
+                {% if p.headline_visible and p.headline %}
+                  <div class="text-muted small">{{ p.headline }}</div>
+                {% endif %}
+                <div class="mt-2">
+                  {% if p.skills_visible and p.skills %}
+                    <div><strong>Skills:</strong> {{ p.skills }}</div>
+                  {% endif %}
+                  {% if p.experience_visible and p.experience %}
+                    <div class="mt-1"><strong>Experience:</strong> {{ p.experience|truncatechars:160 }}</div>
+                  {% endif %}
+                  {% if p.education_visible and p.education %}
+                    <div class="mt-1"><strong>Education:</strong> {{ p.education|truncatechars:120 }}</div>
+                  {% endif %}
+                  {% if p.location %}
+                    <div class="mt-1 text-muted small">{{ p.location }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="ms-3 d-flex flex-column align-items-end">
+                <a href="{% url 'accounts:profile_detail' p.user.username %}" class="btn btn-outline-primary btn-sm mb-2">View Profile</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted mt-3">No applicants found matching your filters.</p>
+  {% endif %}
+
+  <div class="mt-4">
+    <a href="/" class="btn btn-secondary">Back home</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// No extra JS for now; simple text-based filters.
+</script>
+{% endblock %}

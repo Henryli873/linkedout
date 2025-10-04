@@ -47,7 +47,7 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = Profile
         fields = [
-            'headline', 'bio', 'skills', 'experience', 'education', 'github', 'linkedin', 'website', 'avatar',
+            'headline', 'bio', 'skills', 'experience', 'education', 'github', 'linkedin', 'website', 'location', 'avatar',
             'company', 'desired_positions', 'desired_companies',
             'phone',
             # visibility toggles
@@ -59,6 +59,7 @@ class ProfileForm(forms.ModelForm):
             'experience': forms.Textarea(attrs={'rows': 4}),
             'education': forms.Textarea(attrs={'rows': 3}),
             'skills': forms.TextInput(attrs={'placeholder': 'e.g. Python, Django, SQL'}),
+            'location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'City, State or address'}),
             'avatar': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'company': forms.TextInput(attrs={'class': 'form-control'}),
             'desired_positions': forms.Textarea(attrs={'rows': 2, 'placeholder': 'e.g. Backend Engineer, Data Analyst'}),
