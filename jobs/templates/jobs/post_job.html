@@ -1,5 +1,40 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  .search-container { position: relative; }
+  .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+  }
+  .autocomplete-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
+  .autocomplete-item:hover {
+    background-color: #f8f9fa;
+  }
+  .autocomplete-item:last-child {
+    border-bottom: none;
+  }
+  .autocomplete-item.selected {
+    background-color: #e9ecef;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
   <div class="row justify-content-center">
@@ -24,7 +59,10 @@
             <div class="mb-3">
               {{ form.location.label_tag }}
               <div class="input-group">
-                {{ form.location }}
+                <div class="search-container flex-grow-1">
+                  {{ form.location }}
+                  <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+                </div>
                 <button type="button" id="use-my-location" class="btn btn-outline-secondary" title="Use your current location">Use my location</button>
               </div>
               <div class="form-text">Type an address, city, or landmark. Coordinates will be filled automatically.</div>
@@ -83,59 +121,282 @@
   });
 })();
 
-// Geocoding helper used for both 'Use my location' and submit fallback
-async function geocodeQuery(q){
-  try{
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+// MapBox API functions
+async function geocodeQuery(query) {
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    // Fallback to Nominatim
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data[0] ? {
+        display_name: data[0].display_name,
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon)
+      } : null;
+    } catch (e) {
+      console.warn('Geocode error', e);
+      return null;
+    }
+  }
+  
+  // Use MapBox Geocoding API
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=1`;
     const res = await fetch(url);
     const data = await res.json();
-    if (data && data.length) return data[0];
-  }catch(e){
-    console.warn('Geocode error', e);
+    
+    if (data.features && data.features.length > 0) {
+      const item = data.features[0];
+      return {
+        display_name: item.place_name,
+        lat: item.center[1], // MapBox returns [lng, lat]
+        lon: item.center[0]
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error geocoding:', error);
+    return null;
   }
-  return null;
 }
 
-// Attach handlers
+async function searchAddresses(query, limit = 5) {
+  if (query.length < 3) return [];
+  
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    console.error('MapBox API token not configured.');
+    return [];
+  }
+  
+  // Use MapBox Geocoding API for address suggestions (supports autocomplete)
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=${limit}&autocomplete=true`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.features) {
+      return data.features.map(item => ({
+        display_name: item.place_name,
+        lat: item.center[1], // MapBox returns [lng, lat]
+        lon: item.center[0]
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching addresses:', error);
+    return [];
+  }
+}
+
+async function reverseGeocode(lat, lon) {
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    // Fallback to Nominatim
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      console.error('Error reverse geocoding:', error);
+      return null;
+    }
+  }
+  
+  // Use MapBox reverse geocoding
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.features && data.features.length > 0) {
+      return {
+        display_name: data.features[0].place_name
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error with MapBox reverse geocoding:', error);
+    // Fallback to Nominatim
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
+// DOM elements
 const form = document.querySelector('form');
 const locFld = document.querySelector('[name="location"]');
 const latFld = document.querySelector('[name="latitude"]');
 const lonFld = document.querySelector('[name="longitude"]');
 const useBtn = document.getElementById('use-my-location');
+const dropdown = document.getElementById('autocomplete-dropdown');
 
+// Autocomplete functionality
+let searchTimeout = null;
+let currentSuggestions = [];
+let selectedIndex = -1;
+
+function hideDropdown() {
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    selectedIndex = -1;
+  }
+}
+
+function showDropdown() {
+  if (dropdown) {
+    dropdown.style.display = 'block';
+  }
+}
+
+function updateSelectedItem() {
+  if (!dropdown) return;
+  const items = dropdown.querySelectorAll('.autocomplete-item');
+  items.forEach((item, index) => {
+    item.classList.toggle('selected', index === selectedIndex);
+  });
+}
+
+async function handleSearch() {
+  if (!locFld || !dropdown) return;
+  
+  const query = locFld.value.trim();
+  if (query.length < 3) {
+    hideDropdown();
+    return;
+  }
+
+  const suggestions = await searchAddresses(query);
+  currentSuggestions = suggestions;
+  
+  if (suggestions.length === 0) {
+    hideDropdown();
+    return;
+  }
+
+  dropdown.innerHTML = '';
+  suggestions.forEach((suggestion, index) => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.textContent = suggestion.display_name;
+    item.addEventListener('click', () => {
+      selectSuggestion(suggestion);
+    });
+    dropdown.appendChild(item);
+  });
+  
+  selectedIndex = -1;
+  showDropdown();
+}
+
+function selectSuggestion(suggestion) {
+  if (locFld) locFld.value = suggestion.display_name;
+  if (latFld) latFld.value = suggestion.lat;
+  if (lonFld) lonFld.value = suggestion.lon;
+  hideDropdown();
+}
+
+// Event listeners for autocomplete
+if (locFld && dropdown) {
+  locFld.addEventListener('input', () => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(handleSearch, 300); // Debounce search
+  });
+
+  locFld.addEventListener('keydown', (e) => {
+    if (dropdown.style.display === 'none') return;
+    
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+      updateSelectedItem();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, -1);
+      updateSelectedItem();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
+        selectSuggestion(currentSuggestions[selectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      hideDropdown();
+    }
+  });
+
+  locFld.addEventListener('focus', () => {
+    if (currentSuggestions.length > 0 && locFld.value.length >= 3) {
+      showDropdown();
+    }
+  });
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!locFld.contains(e.target) && !dropdown.contains(e.target)) {
+      hideDropdown();
+    }
+  });
+}
+
+// Use my location button
 if (useBtn) {
   useBtn.addEventListener('click', async () => {
     if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
     useBtn.disabled = true;
     useBtn.textContent = 'Locating...';
+    
     navigator.geolocation.getCurrentPosition(async pos => {
       const {latitude, longitude} = pos.coords;
       if (latFld) latFld.value = latitude;
       if (lonFld) lonFld.value = longitude;
+      
       // reverse geocode to fill human-readable location
-      try{
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
-        const r = await fetch(url);
-        const j = await r.json();
-        if (j && j.display_name && locFld) locFld.value = j.display_name;
-      }catch(e){/* ignore */}
+      try {
+        const result = await reverseGeocode(latitude, longitude);
+        if (result && result.display_name && locFld) {
+          locFld.value = result.display_name;
+        }
+      } catch (e) {
+        console.error('Reverse geocoding failed:', e);
+      }
+      
       useBtn.textContent = 'Use my location';
       useBtn.disabled = false;
+      hideDropdown(); // Hide dropdown after location is set
     }, err => {
       useBtn.disabled = false;
       useBtn.textContent = 'Use my location';
       alert('Unable to retrieve your location.');
-    }, {timeout:10000});
+    }, {timeout: 10000});
   });
 }
 
 // On submit, if coords empty but location present, try to geocode first
 if (form) {
-  form.addEventListener('submit', async function(e){
+  form.addEventListener('submit', async function(e) {
     if (!locFld) return;
     if ((latFld && latFld.value) || (lonFld && lonFld.value)) return; // coords present
     const q = locFld.value.trim();
     if (!q) return; // no location provided
+    
     e.preventDefault();
     const place = await geocodeQuery(q);
     if (place) {
