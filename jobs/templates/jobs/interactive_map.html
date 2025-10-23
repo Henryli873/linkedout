@@ -5,20 +5,53 @@
 <style>
   #map { height: 70vh; }
   .map-search { max-width: 480px; }
+  .search-container { position: relative; }
+  .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+  }
+  .autocomplete-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
+  .autocomplete-item:hover {
+    background-color: #f8f9fa;
+  }
+  .autocomplete-item:last-child {
+    border-bottom: none;
+  }
+  .autocomplete-item.selected {
+    background-color: #e9ecef;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
   <div class="container mt-3">
     <div class="d-flex mb-2">
-      <input id="map-search-input" class="form-control map-search me-2" placeholder="Search location or address">
+      <div class="search-container me-2 flex-grow-1" style="max-width: 480px;">
+        <input id="map-search-input" class="form-control" placeholder="Search location or address" autocomplete="off">
+        <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+      </div>
       <button id="map-search-btn" class="btn btn-primary me-2">Search</button>
       <button id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
     </div>
     <div class="d-flex align-items-center mb-3">
       <label class="me-2 mb-0">Radius:</label>
-      <input id="radius-slider" type="range" min="0.5" max="60" step="0.1" value="8" style="width:300px;" />
-      <span id="radius-value" class="ms-2">8 km</span>
+      <input id="radius-slider" type="range" min="0.5" max="50" step="0.5" value="5" style="width:300px;" />
+      <span id="radius-value" class="ms-2">5 miles</span>
     </div>
     <div id="map"></div>
   </div>
@@ -28,18 +61,102 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 async function geocode(query) {
-  // Use Nominatim public API for geocoding
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    console.error('MapBox API token not configured. Using fallback Nominatim API');
+    // Fallback to Nominatim for regular geocoding (single searches are allowed)
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data[0] ? {
+      display_name: data[0].display_name,
+      lat: parseFloat(data[0].lat),
+      lon: parseFloat(data[0].lon)
+    } : null;
+  }
+  
+  // Use MapBox Geocoding API
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=1`;
   const res = await fetch(url);
   const data = await res.json();
-  return data[0];
+  
+  if (data.features && data.features.length > 0) {
+    const item = data.features[0];
+    return {
+      display_name: item.place_name,
+      lat: item.center[1], // MapBox returns [lng, lat]
+      lon: item.center[0]
+    };
+  }
+  return null;
+}
+
+async function searchAddresses(query, limit = 5) {
+  if (query.length < 3) return [];
+  
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    console.error('MapBox API token not configured. Please get a free token from https://account.mapbox.com/');
+    return [];
+  }
+  
+  // Use MapBox Geocoding API for address suggestions (supports autocomplete)
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=${limit}&autocomplete=true`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.features) {
+      return data.features.map(item => ({
+        display_name: item.place_name,
+        lat: item.center[1], // MapBox returns [lng, lat]
+        lon: item.center[0]
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching addresses:', error);
+    return [];
+  }
 }
 
 async function reverseGeocode(lat, lon) {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data;
+  // MapBox API token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    // Fallback to Nominatim
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data;
+  }
+  
+  // Use MapBox reverse geocoding
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.features && data.features.length > 0) {
+      return {
+        display_name: data.features[0].place_name
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error with MapBox reverse geocoding:', error);
+    // Fallback to Nominatim
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data;
+  }
 }
 
 function createMap() {
@@ -128,28 +245,148 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   let userCircle = null;
   let searchMarker = null;
   let searchCircle = null;
-  // slider-driven radius: default 8 km (~5 miles)
-  let currentRadiusKm = 8;
-  let currentRadiusMiles = currentRadiusKm * 0.621371;
-  let searchRadiusMeters = currentRadiusKm * 1000;
+  // slider-driven radius: default 5 miles
+  let currentRadiusMiles = 5;
+  let searchRadiusMeters = currentRadiusMiles * 1609.34; // miles to meters
+
+  // Autocomplete functionality
+  const searchInput = document.getElementById('map-search-input');
+  const dropdown = document.getElementById('autocomplete-dropdown');
+  let searchTimeout = null;
+  let currentSuggestions = [];
+  let selectedIndex = -1;
+  let isManualMove = false; // Flag to prevent auto-updates during manual moves
+
+  function hideDropdown() {
+    dropdown.style.display = 'none';
+    selectedIndex = -1;
+  }
+
+  function showDropdown() {
+    dropdown.style.display = 'block';
+  }
+
+  function updateSelectedItem() {
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+    items.forEach((item, index) => {
+      item.classList.toggle('selected', index === selectedIndex);
+    });
+  }
+
+  async function handleSearch() {
+    const query = searchInput.value.trim();
+    if (query.length < 3) {
+      hideDropdown();
+      return;
+    }
+
+    const suggestions = await searchAddresses(query);
+    currentSuggestions = suggestions;
+    
+    if (suggestions.length === 0) {
+      hideDropdown();
+      return;
+    }
+
+    dropdown.innerHTML = '';
+    suggestions.forEach((suggestion, index) => {
+      const item = document.createElement('div');
+      item.className = 'autocomplete-item';
+      item.textContent = suggestion.display_name;
+      item.addEventListener('click', () => {
+        selectSuggestion(suggestion);
+      });
+      dropdown.appendChild(item);
+    });
+    
+    selectedIndex = -1;
+    showDropdown();
+  }
+
+  async function selectSuggestion(suggestion) {
+    searchInput.value = suggestion.display_name;
+    hideDropdown();
+    
+    const lat = suggestion.lat;
+    const lon = suggestion.lon;
+    
+    // Set flag to prevent auto-updates
+    isManualMove = true;
+    map.setView([lat, lon], 12);
+    
+    // Remove existing search markers and add new ones
+    if (searchMarker) map.removeLayer(searchMarker);
+    if (searchCircle) map.removeLayer(searchCircle);
+    searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
+    searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+    
+    const data = await fetchNearby(lat, lon, currentRadiusMiles);
+    if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
+    
+    // Reset flag after a short delay
+    setTimeout(() => { isManualMove = false; }, 1000);
+  }
+
+  // Event listeners for autocomplete
+  searchInput.addEventListener('input', () => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(handleSearch, 300); // Debounce search
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (dropdown.style.display === 'none') return;
+    
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+      updateSelectedItem();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, -1);
+      updateSelectedItem();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
+        selectSuggestion(currentSuggestions[selectedIndex]);
+      } else {
+        // Fall back to regular search
+        document.getElementById('map-search-btn').click();
+      }
+    } else if (e.key === 'Escape') {
+      hideDropdown();
+    }
+  });
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      hideDropdown();
+    }
+  });
+
+  searchInput.addEventListener('focus', () => {
+    if (currentSuggestions.length > 0 && searchInput.value.length >= 3) {
+      showDropdown();
+    }
+  });
 
   // slider UI wiring
   const radiusSlider = document.getElementById('radius-slider');
   const radiusValue = document.getElementById('radius-value');
   if (radiusSlider) {
     radiusSlider.addEventListener('input', ()=>{
-      currentRadiusKm = parseFloat(radiusSlider.value);
-      currentRadiusMiles = currentRadiusKm * 0.621371;
-      searchRadiusMeters = currentRadiusKm * 1000;
-      if (radiusValue) radiusValue.textContent = `${currentRadiusKm} km`;
+      currentRadiusMiles = parseFloat(radiusSlider.value);
+      searchRadiusMeters = currentRadiusMiles * 1609.34; // miles to meters
+      if (radiusValue) radiusValue.textContent = `${currentRadiusMiles} miles`;
       // update visual circle if present
-      const center = map.getCenter();
       if (searchCircle) {
         searchCircle.setRadius(searchRadiusMeters);
       }
     });
     // initialize display
-    if (radiusValue) radiusValue.textContent = `${currentRadiusKm} km`;
+    if (radiusValue) radiusValue.textContent = `${currentRadiusMiles} miles`;
   }
 
   // Try browser geolocation first
@@ -158,14 +395,12 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       map.setView([lat, lon], 12);
-  // reflect that this is the active location in the search input
-  const input = document.getElementById('map-search-input');
-      if (input) input.value = 'Current location';
-      // add user marker and circle
+      // reflect that this is the active location in the search input
+      if (searchInput) searchInput.value = 'Current location';
+      // add user marker (no circle to avoid conflicts)
       if (userMarker) map.removeLayer(userMarker);
       if (userCircle) map.removeLayer(userCircle);
       userMarker = L.marker([lat, lon], {title: 'You'}).addTo(map).bindPopup('You are here').openPopup();
-  userCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#007bff', weight: 1, opacity: 0.4}).addTo(map);
   // also set the search marker/circle to this center
   if (searchMarker) map.removeLayer(searchMarker);
   if (searchCircle) map.removeLayer(searchCircle);
@@ -176,7 +411,7 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
       // Optionally set the input to a nicer display name by reverse-geocoding
       try {
         const rev = await reverseGeocode(lat, lon);
-        if (rev && rev.display_name && input) input.value = rev.display_name;
+        if (rev && rev.display_name && searchInput) searchInput.value = rev.display_name;
       } catch (e) {
         // ignore reverse geocode failures
       }
@@ -193,17 +428,33 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   }
 
   document.getElementById('map-search-btn').addEventListener('click', async ()=>{
-    const q = document.getElementById('map-search-input').value.trim();
+    const q = searchInput.value.trim();
     if (!q) return;
+    
+    hideDropdown(); // Hide autocomplete when manually searching
+    
     const place = await geocode(q);
     if (!place) return alert('Location not found');
     const lat = parseFloat(place.lat), lon = parseFloat(place.lon);
-  // set the search input to the normalized display name returned by geocoder
-  const input = document.getElementById('map-search-input');
-  if (input && place.display_name) input.value = place.display_name;
+    
+    // set the search input to the normalized display name returned by geocoder
+    if (place.display_name) searchInput.value = place.display_name;
+    
+    // Set flag to prevent auto-updates
+    isManualMove = true;
     map.setView([lat, lon], 12);
-  const data = await fetchNearby(lat, lon, currentRadiusMiles, q);
-  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
+    
+    // Remove existing search markers and add new ones
+    if (searchMarker) map.removeLayer(searchMarker);
+    if (searchCircle) map.removeLayer(searchCircle);
+    searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
+    searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+    
+    const data = await fetchNearby(lat, lon, currentRadiusMiles, q);
+    if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
+    
+    // Reset flag after a short delay
+    setTimeout(() => { isManualMove = false; }, 1000);
   });
 
   // Use my location button
@@ -212,49 +463,67 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
     if (!navigator.geolocation) return alert('Geolocation not supported');
     navigator.geolocation.getCurrentPosition(async (pos)=>{
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      
+      // Set flag to prevent auto-updates
+      isManualMove = true;
       map.setView([lat, lon], 12);
-      const input = document.getElementById('map-search-input');
-      if (input) input.value = 'Current location';
-      // add marker/circle
+      if (searchInput) searchInput.value = 'Current location';
+      
+      // add marker (no circle to avoid conflicts)
       if (userMarker) map.removeLayer(userMarker);
       if (userCircle) map.removeLayer(userCircle);
       userMarker = L.marker([lat, lon], {title: 'You'}).addTo(map).bindPopup('You are here').openPopup();
-      userCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#007bff', weight: 1, opacity: 0.4}).addTo(map);
       // set/replace search marker and circle
       if (searchMarker) map.removeLayer(searchMarker);
       if (searchCircle) map.removeLayer(searchCircle);
       searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
       searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+      
       try {
         const rev = await reverseGeocode(lat, lon);
-        if (rev && rev.display_name && input) input.value = rev.display_name;
+        if (rev && rev.display_name && searchInput) searchInput.value = rev.display_name;
       } catch (e) {}
-  const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
+      
+      const data = await fetchNearby(lat, lon, currentRadiusMiles);
+      if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
+      
+      // Reset flag after a short delay
+      setTimeout(() => { isManualMove = false; }, 1000);
     }, (err)=> alert('Unable to get your location'));
   });
 
-  // When the user moves the map, update the input with reverse-geocoded name and refresh jobs
-  let moveTimeout = null;
-  map.on('moveend', async ()=>{
-    // debounce
-    if (moveTimeout) clearTimeout(moveTimeout);
-    moveTimeout = setTimeout(async ()=>{
-      const center = map.getCenter();
-      const lat = center.lat, lon = center.lng;
-      try {
-        const rev = await reverseGeocode(lat, lon);
-        const input = document.getElementById('map-search-input');
-        if (rev && rev.display_name && input) input.value = rev.display_name;
-      } catch (e) {}
-      // move the search marker/circle to the new center
-      if (searchMarker) map.removeLayer(searchMarker);
-      if (searchCircle) map.removeLayer(searchCircle);
-      searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
-      searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
-  const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
-    }, 300);
+  // Right-click to set new search location
+  map.on('contextmenu', async (e) => {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+    
+    // Hide autocomplete dropdown if open
+    hideDropdown();
+    
+    // Update search marker and circle to the right-clicked location
+    if (searchMarker) map.removeLayer(searchMarker);
+    if (searchCircle) map.removeLayer(searchCircle);
+    searchMarker = L.marker([lat, lon], {title: 'Search center'}).addTo(map);
+    searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+    
+    // Update the search input with the new location name
+    try {
+      const rev = await reverseGeocode(lat, lon);
+      if (rev && rev.display_name && searchInput) {
+        searchInput.value = rev.display_name;
+      } else {
+        // Fallback to coordinates if reverse geocoding fails
+        searchInput.value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      }
+    } catch (e) {
+      console.error('Error reverse geocoding:', e);
+      // Fallback to coordinates if reverse geocoding fails
+      searchInput.value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    }
+    
+    // Fetch and display jobs for the new location
+    const data = await fetchNearby(lat, lon, currentRadiusMiles);
+    if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles);
   });
 })();
 </script>
