@@ -1,5 +1,42 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+.search-container {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ccc;
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.autocomplete-item:hover {
+  background-color: #f8f9fa;
+}
+
+.autocomplete-item.selected {
+  background-color: #007bff;
+  color: white;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
   <div class="row justify-content-center">
@@ -22,9 +59,12 @@
 
             <div class="mb-3">
               {{ form.location.label_tag }}
-              <div class="input-group">
-                {{ form.location }}
-                <button type="button" id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
+              <div class="search-container">
+                <div class="input-group">
+                  {{ form.location }}
+                  <button type="button" id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
+                </div>
+                <div class="autocomplete-dropdown"></div>
               </div>
               <div class="form-text">Type an address or city. Coordinates will be populated automatically.</div>
             </div>
@@ -65,14 +105,78 @@
   document.querySelectorAll('select').forEach(s => { if (!s.classList.contains('form-select')) s.classList.add('form-select'); });
 })();
 
-async function geocode(q){
-  try{
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
-    const r = await fetch(url);
-    const data = await r.json();
-    if (data && data.length) return data[0];
-  }catch(e){console.warn(e)}
-  return null;
+// MapBox geocoding functions
+async function geocodeQuery(query) {
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data[0] ? { display_name: data[0].display_name, lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) } : null;
+    } catch (e) { return null; }
+  }
+  
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=1`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.features && data.features.length > 0) {
+      const item = data.features[0];
+      return { display_name: item.place_name, lat: item.center[1], lon: item.center[0] };
+    }
+    return null;
+  } catch (error) { return null; }
+}
+
+async function searchAddresses(query, limit = 5) {
+  if (query.length < 3) return [];
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') return [];
+  
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=${limit}&autocomplete=true`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.features) {
+      return data.features.map(item => ({
+        display_name: item.place_name,
+        lat: item.center[1],
+        lon: item.center[0]
+      }));
+    }
+    return [];
+  } catch (error) { return []; }
+}
+
+async function reverseGeocode(lat, lon) {
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+      const res = await fetch(url);
+      return await res.json();
+    } catch (error) { return null; }
+  }
+  
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.features && data.features.length > 0) {
+      return { display_name: data.features[0].place_name };
+    }
+    return null;
+  } catch (error) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+      const res = await fetch(url);
+      return await res.json();
+    } catch (e) { return null; }
+  }
 }
 
 const form = document.querySelector('form');
@@ -80,6 +184,57 @@ const locFld = document.querySelector('[name="location"]');
 const latFld = document.querySelector('[name="latitude"]');
 const lonFld = document.querySelector('[name="longitude"]');
 const useBtn = document.getElementById('use-my-location');
+const dropdown = document.querySelector('.autocomplete-dropdown');
+
+// Autocomplete functionality
+let searchTimeout;
+
+if (locFld && dropdown) {
+  locFld.addEventListener('input', async function(e) {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    
+    if (query.length < 3) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    
+    searchTimeout = setTimeout(async () => {
+      const suggestions = await searchAddresses(query);
+      
+      dropdown.innerHTML = '';
+      if (suggestions.length > 0) {
+        suggestions.forEach(suggestion => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.textContent = suggestion.display_name;
+          item.addEventListener('click', () => selectSuggestion(suggestion));
+          dropdown.appendChild(item);
+        });
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.style.display = 'none';
+      }
+    }, 300);
+  });
+  
+  locFld.addEventListener('blur', function() {
+    setTimeout(() => dropdown.style.display = 'none', 150);
+  });
+  
+  locFld.addEventListener('focus', function() {
+    if (dropdown.children.length > 0) {
+      dropdown.style.display = 'block';
+    }
+  });
+}
+
+function selectSuggestion(suggestion) {
+  if (locFld) locFld.value = suggestion.display_name;
+  if (latFld) latFld.value = suggestion.lat;
+  if (lonFld) lonFld.value = suggestion.lon;
+  dropdown.style.display = 'none';
+}
 
 if (useBtn){
   useBtn.addEventListener('click', ()=>{
@@ -88,8 +243,18 @@ if (useBtn){
     navigator.geolocation.getCurrentPosition(async pos => {
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       if (latFld) latFld.value = lat; if (lonFld) lonFld.value = lon;
-      try{ const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`); const j = await rev.json(); if (j.display_name && locFld) locFld.value = j.display_name; }catch(e){}
+      
+      try {
+        const result = await reverseGeocode(lat, lon);
+        if (result && result.display_name && locFld) {
+          locFld.value = result.display_name;
+        }
+      } catch (e) {
+        console.warn('Reverse geocoding failed:', e);
+      }
+      
       useBtn.disabled = false; useBtn.textContent = 'Use my location';
+      if (dropdown) dropdown.style.display = 'none';
     }, err => { useBtn.disabled=false; useBtn.textContent='Use my location'; alert('Unable to access location'); }, {timeout:10000});
   });
 }
@@ -100,7 +265,7 @@ if (form){
     if ((latFld && latFld.value) || (lonFld && lonFld.value)) return; // already have coords
     const q = locFld.value.trim(); if (!q) return;
     e.preventDefault();
-    const place = await geocode(q);
+    const place = await geocodeQuery(q);
     if (place){ if (latFld) latFld.value = place.lat; if (lonFld) lonFld.value = place.lon; }
     form.submit();
   });

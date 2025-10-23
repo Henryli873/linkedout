@@ -2,6 +2,45 @@
 
 {% block title %}Find Applicants{% endblock %}
 
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+.search-container {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ccc;
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.autocomplete-item:hover {
+  background-color: #f8f9fa;
+}
+
+.autocomplete-item.selected {
+  background-color: #007bff;
+  color: white;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center">
@@ -22,7 +61,10 @@
         </div>
         <div class="col-auto">
           <label class="form-label small">Location</label>
-          <input type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, State or address">
+          <div class="search-container">
+            <input type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, State or address" autocomplete="off">
+            <div class="autocomplete-dropdown"></div>
+          </div>
         </div>
         <div class="col-auto">
           <label class="form-label small">Experience</label>
@@ -82,6 +124,76 @@
 
 {% block extra_js %}
 <script>
-// No extra JS for now; simple text-based filters.
+// MapBox API functions
+async function searchAddresses(query, limit = 5) {
+  if (query.length < 3) return [];
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
+  
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') return [];
+  
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=${limit}&autocomplete=true`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.features) {
+      return data.features.map(item => ({
+        display_name: item.place_name,
+        lat: item.center[1],
+        lon: item.center[0]
+      }));
+    }
+    return [];
+  } catch (error) { return []; }
+}
+
+// Autocomplete for location input
+const locationInput = document.querySelector('input[name="location"]');
+const dropdown = document.querySelector('.autocomplete-dropdown');
+let searchTimeout;
+
+if (locationInput && dropdown) {
+  locationInput.addEventListener('input', async function(e) {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    
+    if (query.length < 3) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    
+    searchTimeout = setTimeout(async () => {
+      const suggestions = await searchAddresses(query);
+      
+      dropdown.innerHTML = '';
+      if (suggestions.length > 0) {
+        suggestions.forEach(suggestion => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.textContent = suggestion.display_name;
+          item.addEventListener('click', () => selectSuggestion(suggestion));
+          dropdown.appendChild(item);
+        });
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.style.display = 'none';
+      }
+    }, 300);
+  });
+  
+  locationInput.addEventListener('blur', function() {
+    setTimeout(() => dropdown.style.display = 'none', 150);
+  });
+  
+  locationInput.addEventListener('focus', function() {
+    if (dropdown.children.length > 0) {
+      dropdown.style.display = 'block';
+    }
+  });
+}
+
+function selectSuggestion(suggestion) {
+  locationInput.value = suggestion.display_name;
+  dropdown.style.display = 'none';
+}
 </script>
 {% endblock %}

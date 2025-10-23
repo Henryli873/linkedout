@@ -48,6 +48,9 @@
       <button id="map-search-btn" class="btn btn-primary me-2">Search</button>
       <button id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
     </div>
+    <div class="small text-muted mb-2">
+      <i class="fas fa-info-circle"></i> Right click on the map to set your location
+    </div>
     <div class="d-flex align-items-center mb-3">
       <label class="me-2 mb-0">Radius:</label>
       <input id="radius-slider" type="range" min="0.5" max="50" step="0.5" value="5" style="width:300px;" />
@@ -267,7 +270,9 @@ function addMapLegend(map) {
 }
 
 async function fetchNearby(lat, lon, radius_miles=5, q='') {
-  const url = `/search/map/nearby/?lat=${lat}&lon=${lon}&radius=${radius_miles}&q=${encodeURIComponent(q)}`;
+  // Use a larger radius for fetching to ensure all jobs appear, we'll color them based on the actual radius
+  const fetchRadius = Math.max(radius_miles * 3, 50); // At least 3x the radius or 50 miles, whichever is larger
+  const url = `/search/map/nearby/?lat=${lat}&lon=${lon}&radius=${fetchRadius}&q=${encodeURIComponent(q)}`;
   const res = await fetch(url);
   return res.json();
 }
@@ -450,8 +455,10 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   if (searchCircle) map.removeLayer(searchCircle);
   searchMarker = L.marker([lat, lon], {title: 'Search center', icon: L.icon({iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', iconSize: [25,41], iconAnchor:[12,41]})}).addTo(map);
   searchCircle = L.circle([lat, lon], {radius: searchRadiusMeters, color: '#28a745', weight: 1, opacity: 0.25}).addTo(map);
+  // Center map on user's location first
+  map.setView([lat, lon], 12);
   const data = await fetchNearby(lat, lon, currentRadiusMiles);
-  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles, true);
+  if (!data.error) addJobsToMap(map, data.jobs, L.latLng(lat, lon), currentRadiusMiles, false);
       // Optionally set the input to a nicer display name by reverse-geocoding
       try {
         const rev = await reverseGeocode(lat, lon);
