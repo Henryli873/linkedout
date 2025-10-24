@@ -2,24 +2,113 @@
 
 {% block content %}
 <div class="container mt-4">
-  <h2>My Postings</h2>
-  <p class="text-muted">Manage your job postings. Click a title to view or Edit to update the post.</p>
-  {% if jobs and jobs.exists %}
-  <div class="list-group">
-    {% for job in jobs %}
-      <div class="list-group-item d-flex justify-content-between align-items-start">
-        <div>
-          <h5 class="mb-1"><a href="{% url 'jobs:job_detail' job.pk %}">{{ job.title }}</a></h5>
-          <p class="mb-1 text-muted small">{{ job.location }} • Posted {{ job.posted_at|date:"M j, Y" }}</p>
-        </div>
-        <div>
-          <a class="btn btn-sm btn-outline-primary me-2" href="{% url 'jobs:edit_post' job.pk %}">Edit</a>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2>My Job Postings</h2>
+      <p class="text-muted mb-0">Manage your job postings and find qualified candidates.</p>
+    </div>
+    <a href="{% url 'jobs:post_job' %}" class="btn btn-primary">
+      <i class="fas fa-plus"></i> Post New Job
+    </a>
+  </div>
+  
+  {% if jobs_with_analytics %}
+    <!-- Dashboard Overview -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card bg-primary text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h4 class="card-title">{{ total_jobs }}</h4>
+                <p class="card-text">Active Job{{ total_jobs|pluralize }}</p>
+              </div>
+              <i class="fas fa-briefcase fa-2x opacity-75"></i>
+            </div>
+          </div>
         </div>
       </div>
+      <div class="col-md-4">
+        <div class="card bg-info text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h4 class="card-title">{{ total_applications }}</h4>
+                <p class="card-text">Total Application{{ total_applications|pluralize }}</p>
+              </div>
+              <i class="fas fa-inbox fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card bg-success text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <h4 class="card-title">{{ total_candidates }}</h4>
+                <p class="card-text">Qualified Candidate{{ total_candidates|pluralize }}</p>
+              </div>
+              <i class="fas fa-users fa-2x opacity-75"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  {% if jobs_with_analytics %}
+  <div class="list-group">
+    {% for item in jobs_with_analytics %}
+      {% with job=item.job app_count=item.application_count candidate_count=item.candidate_count %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <h5 class="mb-1"><a href="{% url 'jobs:job_detail' job.pk %}">{{ job.title }}</a></h5>
+            <p class="mb-1 text-muted small">{{ job.company }} • {{ job.location }} • Posted {{ job.posted_at|date:"M j, Y" }}</p>
+            <p class="mb-2 text-truncate" style="max-width: 600px;">{{ job.description|truncatechars:100 }}</p>
+            
+            <div class="d-flex gap-4 mb-2">
+              <div class="d-flex align-items-center">
+                <i class="fas fa-inbox text-primary me-1"></i>
+                <span class="small"><strong>{{ app_count }}</strong> Application{{ app_count|pluralize }}</span>
+              </div>
+              <div class="d-flex align-items-center">
+                <i class="fas fa-users text-success me-1"></i>
+                <span class="small"><strong>{{ candidate_count }}</strong> Qualified Candidate{{ candidate_count|pluralize }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="d-flex flex-column gap-1" style="min-width: 160px;">
+            <a class="btn btn-sm btn-success" href="{% url 'jobs:job_recommendations' job.pk %}">
+              <i class="fas fa-users"></i> Find Candidates
+              {% if candidate_count > 0 %}
+                <span class="badge bg-light text-dark ms-1">{{ candidate_count }}</span>
+              {% endif %}
+            </a>
+            <a class="btn btn-sm btn-outline-info" href="{% url 'jobs:recruiter_applications' %}">
+              <i class="fas fa-inbox"></i> Applications
+              {% if app_count > 0 %}
+                <span class="badge bg-light text-dark ms-1">{{ app_count }}</span>
+              {% endif %}
+            </a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'jobs:edit_post' job.pk %}">
+              <i class="fas fa-edit"></i> Edit
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endwith %}
     {% endfor %}
   </div>
   {% else %}
-    <div class="alert alert-info">You have no postings yet.</div>
+    <div class="alert alert-info">
+      <h5><i class="fas fa-info-circle"></i> No job postings yet</h5>
+      <p class="mb-2">Start finding qualified candidates by posting your first job!</p>
+      <a href="{% url 'jobs:post_job' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Post Your First Job
+      </a>
+    </div>
   {% endif %}
 </div>
 {% endblock %}

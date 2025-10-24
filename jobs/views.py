@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
-from .models import Job, Application
+from .models import Job, Application, SavedProfile
 from .forms import JobPostForm
+from accounts.models import Profile
 from django import forms
 from django.http import HttpResponseForbidden
 from django.db.models import Case, When, Value, IntegerField, F, Q
@@ -143,11 +144,138 @@ def search(request):
     }
     return render(request, 'jobs/search_results.html', context)
 
+def calculate_match_score(job, profile):
+    """Calculate how well a candidate matches a job posting (0-100)."""
+    score = 0
+    max_score = 0
+    
+    # Skills matching (40% of total score)
+    skills_weight = 40
+    max_score += skills_weight
+    if job.description and profile.skills:
+        job_text = (job.title + " " + job.description + " " + (job.company or "")).lower()
+        candidate_skills = [s.strip().lower() for s in profile.skills.split(",") if s.strip()]
+        
+        skills_matched = 0
+        for skill in candidate_skills:
+            if skill in job_text:
+                skills_matched += 1
+        
+        if candidate_skills:
+            skills_score = (skills_matched / len(candidate_skills)) * skills_weight
+            score += skills_score
+    
+    # Desired positions matching (25% of total score)
+    position_weight = 25
+    max_score += position_weight
+    if profile.desired_positions and job.title:
+        desired_positions = [p.strip().lower() for p in profile.desired_positions.split(",") if p.strip()]
+        job_title_lower = job.title.lower()
+        
+        for position in desired_positions:
+            if position in job_title_lower or job_title_lower in position:
+                score += position_weight
+                break
+    
+    # Company matching (15% of total score)
+    company_weight = 15
+    max_score += company_weight
+    if profile.desired_companies and job.company:
+        desired_companies = [c.strip().lower() for c in profile.desired_companies.split(",") if c.strip()]
+        job_company_lower = job.company.lower()
+        
+        for company in desired_companies:
+            if company in job_company_lower or job_company_lower in company:
+                score += company_weight
+                break
+    
+    # Location proximity (20% of total score)
+    location_weight = 20
+    max_score += location_weight
+    if profile.latitude and profile.longitude and job.latitude and job.longitude:
+        # Calculate distance using haversine formula
+        distance_miles = haversine(profile.longitude, profile.latitude, job.longitude, job.latitude)
+        if distance_miles <= 50:  # Within 50 miles gets full points
+            score += location_weight
+        elif distance_miles <= 100:  # 50-100 miles gets half points
+            score += location_weight * 0.5
+        elif distance_miles <= 200:  # 100-200 miles gets quarter points
+            score += location_weight * 0.25
+    else:
+        # If no coordinates, try text matching
+        if profile.location and job.location:
+            if profile.location.lower() in job.location.lower() or job.location.lower() in profile.location.lower():
+                score += location_weight * 0.7  # 70% of location score for text match
+    
+    # Return percentage score
+    return min(100, (score / max_score) * 100) if max_score > 0 else 0
+
+
+@login_required
+def job_recommendations(request, job_id):
+    """Show candidate recommendations for a specific job posting."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
+        return HttpResponseForbidden("You are not authorized.")
+    
+    job = get_object_or_404(Job, pk=job_id, owner=request.user)
+    
+    # Get all non-recruiter profiles
+    candidates = Profile.objects.filter(
+        is_recruiter=False,
+        user__is_active=True
+    ).select_related('user')
+    
+    # Calculate match scores and filter out low matches
+    recommendations = []
+    for candidate in candidates:
+        # Skip if candidate already applied
+        if Application.objects.filter(job=job, user=candidate.user).exists():
+            continue
+            
+        score = calculate_match_score(job, candidate)
+        if score >= 20:  # Only show candidates with at least 20% match
+            recommendations.append({
+                'profile': candidate,
+                'score': score,
+                'is_saved': SavedProfile.objects.filter(recruiter=request.user, saved_user=candidate.user).exists()
+            })
+    
+    # Sort by score (highest first)
+    recommendations.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Limit to top 20 recommendations
+    recommendations = recommendations[:20]
+    
+    return render(request, 'jobs/job_recommendations.html', {
+        'job': job,
+        'recommendations': recommendations,
+    })
 
 
 def job_detail(request, pk):
 	job = get_object_or_404(Job, pk=pk)
-	return render(request, 'jobs/job_detail.html', {'job': job})
+	user_profile = getattr(request.user, 'profile', None) if request.user.is_authenticated else None
+	
+	# For recruiters viewing their own jobs, show quick recommendation preview
+	recommendation_count = 0
+	if (request.user.is_authenticated and user_profile and 
+		user_profile.is_recruiter and job.owner == request.user):
+		
+		candidates = Profile.objects.filter(is_recruiter=False, user__is_active=True)
+		for candidate in candidates:
+			if Application.objects.filter(job=job, user=candidate.user).exists():
+				continue
+			score = calculate_match_score(job, candidate)
+			if score >= 20:
+				recommendation_count += 1
+		recommendation_count = min(recommendation_count, 20)  # Cap display
+	
+	return render(request, 'jobs/job_detail.html', {
+		'job': job,
+		'user_profile': user_profile,
+		'recommendation_count': recommendation_count,
+	})
 
 @login_required
 def suggest_jobs(request):
@@ -390,8 +518,42 @@ def my_postings(request):
     if not profile or not profile.is_recruiter:
         return redirect('home:index')
 
-    qs = Job.objects.filter(owner=request.user)   # ✅ simple, reliable
-    return render(request, 'jobs/my_postings.html', {'jobs': qs})
+    jobs = Job.objects.filter(owner=request.user).order_by('-posted_at')
+    
+    # Add analytics for each job
+    jobs_with_analytics = []
+    for job in jobs:
+        # Count applications
+        application_count = Application.objects.filter(job=job).count()
+        
+        # Count potential candidates (for recommendations)
+        candidate_count = 0
+        candidates = Profile.objects.filter(is_recruiter=False, user__is_active=True)
+        for candidate in candidates:
+            # Skip if already applied
+            if Application.objects.filter(job=job, user=candidate.user).exists():
+                continue
+            score = calculate_match_score(job, candidate)
+            if score >= 20:  # Same threshold as recommendations
+                candidate_count += 1
+        
+        jobs_with_analytics.append({
+            'job': job,
+            'application_count': application_count,
+            'candidate_count': min(candidate_count, 20),  # Cap at 20 for display
+        })
+    
+    # Calculate overall statistics
+    total_jobs = len(jobs_with_analytics)
+    total_applications = sum(item['application_count'] for item in jobs_with_analytics)
+    total_candidates = sum(item['candidate_count'] for item in jobs_with_analytics)
+    
+    return render(request, 'jobs/my_postings.html', {
+        'jobs_with_analytics': jobs_with_analytics,
+        'total_jobs': total_jobs,
+        'total_applications': total_applications, 
+        'total_candidates': total_candidates,
+    })
 
 
 

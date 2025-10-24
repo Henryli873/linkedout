@@ -20,6 +20,9 @@ urlpatterns = [
     path("recruiter/applications/", views.recruiter_applications, name="recruiter_applications"),
     path("recruiter/applications/<int:pk>/update/", views.update_application_status, name="update_status"),
     path("recruiter/applications/update-status/", views.recruiter_update_application_status_ajax, name="recruiter_update_status_ajax"),
+    
+    # Candidate recommendations
+    path("<int:job_id>/recommendations/", views.job_recommendations, name="job_recommendations"),
     path('map/', views.interactive_map, name='interactive_map'),
     path('map/nearby/', views.jobs_nearby, name='jobs_nearby'),
 ]

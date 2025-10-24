@@ -4,10 +4,82 @@
 <div class="container mt-4">
   <div class="card">
     <div class="card-body">
-      <h3>{{ job.title }}</h3>
-      <p class="text-muted">{{ job.company }} — {{ job.location }}</p>
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <h3>{{ job.title }}</h3>
+          <p class="text-muted">{{ job.company }} — {{ job.location }}</p>
+        </div>
+        
+        {% if user.is_authenticated and user_profile and user_profile.is_recruiter and job.owner == user %}
+          <div class="d-flex gap-2">
+            <a href="{% url 'jobs:job_recommendations' job.pk %}" class="btn btn-success btn-sm">
+              <i class="fas fa-users"></i> Find Candidates
+              {% if recommendation_count > 0 %}
+                <span class="badge bg-light text-dark ms-1">{{ recommendation_count }}</span>
+              {% endif %}
+            </a>
+            <a href="{% url 'jobs:edit_post' job.pk %}" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-edit"></i> Edit
+            </a>
+          </div>
+        {% endif %}
+      </div>
+      
       <div class="mb-3">{{ job.description|linebreaks }}</div>
-      <a href="{% url 'jobs:apply' job.pk %}" class="btn btn-primary">Apply</a>
+      
+      {% if job.salary_min or job.salary_max %}
+        <div class="mb-2">
+          <strong>Salary:</strong>
+          {% if job.salary_min and job.salary_max %}
+            ${{ job.salary_min|floatformat:0 }} - ${{ job.salary_max|floatformat:0 }}
+          {% elif job.salary_min %}
+            From ${{ job.salary_min|floatformat:0 }}
+          {% elif job.salary_max %}
+            Up to ${{ job.salary_max|floatformat:0 }}
+          {% endif %}
+        </div>
+      {% endif %}
+      
+      {% if job.visa_sponsorship != 'none' %}
+        <div class="mb-2">
+          <strong>Visa Sponsorship:</strong> {{ job.get_visa_sponsorship_display }}
+        </div>
+      {% endif %}
+      
+      <div class="mb-3">
+        <small class="text-muted">Posted {{ job.posted_at|date:"M d, Y" }}</small>
+      </div>
+      
+      {% if not user.is_authenticated or not user_profile or not user_profile.is_recruiter or job.owner != user %}
+        <a href="{% url 'jobs:apply' job.pk %}" class="btn btn-primary">Apply for This Job</a>
+      {% else %}
+        <!-- Recruiter Dashboard Section -->
+        <div class="mt-4 p-3 bg-light rounded">
+          <h5><i class="fas fa-chart-line"></i> Recruiter Dashboard</h5>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="d-flex justify-content-between align-items-center py-2">
+                <span><i class="fas fa-users text-success"></i> Qualified Candidates:</span>
+                <strong class="text-success">{{ recommendation_count }}</strong>
+              </div>
+              <div class="d-flex justify-content-between align-items-center py-2">
+                <span><i class="fas fa-inbox text-info"></i> Applications Received:</span>
+                <strong class="text-info">{{ job.applications.count }}</strong>
+              </div>
+            </div>
+            <div class="col-md-6 d-flex align-items-center justify-content-end">
+              {% if recommendation_count > 0 %}
+                <a href="{% url 'jobs:job_recommendations' job.pk %}" class="btn btn-success me-2">
+                  <i class="fas fa-search"></i> View {{ recommendation_count }} Candidate{{ recommendation_count|pluralize }}
+                </a>
+              {% endif %}
+              <a href="{% url 'jobs:recruiter_applications' %}" class="btn btn-outline-info">
+                <i class="fas fa-inbox"></i> Manage Applications
+              </a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>

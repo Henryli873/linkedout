@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load job_extras %}
+
+{% block title %}Candidate Recommendations - {{ job.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.match-score {
+  font-weight: bold;
+}
+.score-excellent { color: #28a745; }
+.score-good { color: #17a2b8; }
+.score-fair { color: #ffc107; }
+.score-poor { color: #dc3545; }
+
+.recommendation-card {
+  transition: box-shadow 0.2s;
+}
+.recommendation-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.skills-match {
+  background-color: #e8f5e8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  margin: 2px;
+  display: inline-block;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2>Candidate Recommendations</h2>
+      <div class="text-muted">For: <strong>{{ job.title }}</strong> at {{ job.company }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'jobs:job_detail' job.pk %}" class="btn btn-outline-secondary">Back to Job</a>
+      <a href="{% url 'jobs:my_postings' %}" class="btn btn-outline-primary">My Postings</a>
+    </div>
+  </div>
+
+  {% if recommendations %}
+    <div class="mb-3">
+      <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> 
+        Found {{ recommendations|length }} qualified candidates. 
+        Recommendations are based on skills match, desired positions, location proximity, and company preferences.
+      </div>
+    </div>
+
+    <div class="row gy-4">
+      {% for rec in recommendations %}
+        {% with profile=rec.profile score=rec.score %}
+        <div class="col-12">
+          <div class="card recommendation-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="d-flex">
+                  {% if profile.avatar %}
+                    <img src="{{ profile.avatar.url }}" class="rounded-circle me-3" style="width:60px; height:60px; object-fit:cover;">
+                  {% else %}
+                    <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center" style="width:60px; height:60px;">
+                      <i class="fas fa-user text-white"></i>
+                    </div>
+                  {% endif %}
+                  
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center mb-1">
+                      <h5 class="mb-0 me-3">{{ profile.user.get_full_name|default:profile.user.username }}</h5>
+                      <span class="match-score 
+                        {% if score >= 80 %}score-excellent
+                        {% elif score >= 60 %}score-good
+                        {% elif score >= 40 %}score-fair
+                        {% else %}score-poor{% endif %}">
+                        {{ score|floatformat:0 }}% Match
+                      </span>
+                    </div>
+                    
+                    {% if profile.headline_visible and profile.headline %}
+                      <div class="text-muted mb-2">{{ profile.headline }}</div>
+                    {% endif %}
+                    
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        {% if profile.skills_visible and profile.skills %}
+                          <div class="mb-2">
+                            <strong class="small">Skills:</strong>
+                            <div class="mt-1">
+                              {% for skill in profile.skills|split:"," %}
+                                {% if skill.strip %}
+                                  <span class="skills-match">{{ skill.strip }}</span>
+                                {% endif %}
+                              {% endfor %}
+                            </div>
+                          </div>
+                        {% endif %}
+                        
+                        {% if profile.desired_positions_visible and profile.desired_positions %}
+                          <div class="mb-2">
+                            <strong class="small">Desired Positions:</strong>
+                            <div class="text-muted small">{{ profile.desired_positions|truncatechars:100 }}</div>
+                          </div>
+                        {% endif %}
+                      </div>
+                      
+                      <div class="col-md-6">
+                        {% if profile.experience_visible and profile.experience %}
+                          <div class="mb-2">
+                            <strong class="small">Experience:</strong>
+                            <div class="text-muted small">{{ profile.experience|truncatechars:120 }}</div>
+                          </div>
+                        {% endif %}
+                        
+                        {% if profile.location %}
+                          <div class="mb-2">
+                            <strong class="small">Location:</strong>
+                            <div class="text-muted small">{{ profile.location }}</div>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="ms-3 d-flex flex-column gap-2">
+                  <a href="{% url 'accounts:profile_detail' profile.user.username %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-eye"></i> View Profile
+                  </a>
+                  
+                  <form method="post" action="{% url 'accounts:save_profile' profile.user.pk %}" class="m-0">
+                    {% csrf_token %}
+                    {% if rec.is_saved %}
+                      <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                        <i class="fas fa-heart-broken"></i> Unsave
+                      </button>
+                    {% else %}
+                      <button type="submit" class="btn btn-outline-success btn-sm w-100">
+                        <i class="fas fa-heart"></i> Save
+                      </button>
+                    {% endif %}
+                  </form>
+                  
+                  <a href="{% url 'accounts:message_user' profile.user.pk %}" class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-envelope"></i> Message
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+      {% endfor %}
+    </div>
+    
+    <div class="mt-4 text-center">
+      <div class="text-muted small">
+        <i class="fas fa-lightbulb"></i> 
+        <strong>Tip:</strong> Save promising candidates and message them directly to start a conversation about your opportunity.
+      </div>
+    </div>
+    
+  {% else %}
+    <div class="text-center py-5">
+      <i class="fas fa-search fa-3x text-muted mb-3"></i>
+      <h4 class="text-muted">No recommendations found</h4>
+      <p class="text-muted mb-4">
+        We couldn't find any candidates that match the requirements for this position.<br>
+        This could be because:
+      </p>
+      <div class="text-start" style="max-width: 500px; margin: 0 auto;">
+        <ul class="text-muted">
+          <li>All qualified candidates have already applied</li>
+          <li>The job requirements are very specific</li>
+          <li>There aren't many candidates with matching skills in the system yet</li>
+        </ul>
+      </div>
+      <div class="mt-4">
+        <a href="{% url 'accounts:find_applicants' %}" class="btn btn-primary me-2">
+          <i class="fas fa-search"></i> Browse All Candidates
+        </a>
+        <a href="{% url 'jobs:my_postings' %}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left"></i> Back to My Postings
+        </a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add split filter for templates
+(function() {
+  // This is handled by Django's built-in split filter, but we can add 
+  // additional JavaScript functionality here if needed
+})();
+</script>
+{% endblock %}
