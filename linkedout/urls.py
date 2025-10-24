@@ -19,8 +19,14 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from accounts.views import CustomLoginView
+from . import admin as linkedout_admin
 
 urlpatterns = [
+    # Custom export URLs - must be before admin catch-all
+    path('admin/export-accounts/', linkedout_admin.export_accounts_csv, name='export-accounts'),
+    path('admin/export-auth/', linkedout_admin.export_auth_csv, name='export-auth'),
+    path('admin/export-jobs/', linkedout_admin.export_jobs_csv, name='export-jobs'),
+    path('admin/export-all/', linkedout_admin.export_all_csv, name='export-all'),
     path('admin/', admin.site.urls),
     path('', include('home.urls')),
     path('accounts/', include('accounts.urls', namespace='accounts')),

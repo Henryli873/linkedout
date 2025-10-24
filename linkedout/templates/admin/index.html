@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+  <div class="module">
+    <h2>Data exports</h2>
+    <p>Download CSV exports for reporting:</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="button" href="{% url 'export-accounts' %}">Export Accounts (CSV)</a>
+      <a class="button" href="{% url 'export-auth' %}">Export Auth (CSV)</a>
+      <a class="button" href="{% url 'export-jobs' %}">Export Jobs (CSV)</a>
+      <a class="button" href="{% url 'export-all' %}">Export ALL Data (CSV)</a>
+    </div>
+  </div>
+
+  <hr>
+
+  {# include standard admin app list below #}
+  {% include "admin/app_list.html" %}
+{% endblock %}
