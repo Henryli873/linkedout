@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Profiles{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h3>Saved Profiles</h3>
+  {% if entries %}
+    <div class="row g-3 mt-2">
+      {% for e in entries %}
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-body d-flex">
+              <div class="me-3">
+                {% if e.profile and e.profile.avatar %}
+                  <img src="{{ e.profile.avatar.url }}" class="rounded-circle" style="width:64px;height:64px;object-fit:cover;">
+                {% else %}
+                  <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width:64px;height:64px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="#6c757d" class="bi bi-person" viewBox="0 0 16 16">
+                      <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                      <path fill-rule="evenodd" d="M8 9a5 5 0 0 0-4.546 2.916C3.954 12.958 5.9 14 8 14s4.046-1.042 4.546-2.084A5 5 0 0 0 8 9z"/>
+                    </svg>
+                  </div>
+                {% endif %}
+              </div>
+              <div class="flex-grow-1">
+                <h5 class="card-title mb-1">{{ e.user.get_full_name|default:e.user.username }}</h5>
+                {% if e.profile and e.profile.headline %}
+                  <div class="text-muted small mb-2">{{ e.profile.headline }}</div>
+                {% endif %}
+                {% if e.profile and e.profile.bio %}
+                  <p class="mb-2 small text-truncate" style="max-height:3.6em; overflow:hidden;">{{ e.profile.bio }}</p>
+                {% endif %}
+                <div>
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'accounts:profile_detail' username=e.user.username %}">View Profile</a>
+                </div>
+              </div>
+              <div class="text-end ms-3">
+                <div class="small text-muted">Saved {{ e.saved_at|date:"M j, Y" }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">You have not saved any profiles yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

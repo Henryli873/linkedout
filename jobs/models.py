@@ -49,3 +49,39 @@ class Application(models.Model):
 
 	def __str__(self):
 		return f"{self.user.username} - {self.job.title} ({self.status})"
+
+
+class SavedProfile(models.Model):
+	"""
+	Simple mapping for recruiters to save candidate profiles.
+	Stored here to avoid modifying accounts app models.
+	"""
+	recruiter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_profiles")
+	saved_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_by")
+	saved_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		unique_together = ("recruiter", "saved_user")
+		ordering = ["-saved_at"]
+
+	def __str__(self):
+		return f"{self.recruiter.username} saved {self.saved_user.username}"
+
+
+class Message(models.Model):
+	"""
+	In-app messages between users. Stored here to avoid touching accounts.models.
+	"""
+	sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages")
+	recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="received_messages")
+	subject = models.CharField(max_length=255, blank=True)
+	body = models.TextField()
+	sent_at = models.DateTimeField(auto_now_add=True)
+	read = models.BooleanField(default=False)
+
+	class Meta:
+		ordering = ["-sent_at"]
+
+	def __str__(self):
+		sub = f"{self.subject[:40]} - " if self.subject else ""
+		return f"{sub}{self.sender.username} -> {self.recipient.username} @ {self.sent_at}"

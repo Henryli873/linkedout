@@ -10,7 +10,60 @@ from django.urls import reverse
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 import re
+from django.contrib.auth.models import User
+from django.contrib import messages
+from .emails import send_profile_message
+from jobs.models import SavedProfile, Message
 
+@login_required
+def message_user_view(request, pk):
+    """Compose a message to a user (GET shows form, POST saves Message and sends email)."""
+    recipient = get_object_or_404(User, pk=pk)
+    if request.method == "POST":
+        subject = request.POST.get("subject", "").strip()
+        message_text = request.POST.get("message", "").strip()
+        if not message_text:
+            messages.error(request, "Please enter a message before sending.")
+            return redirect("accounts:message_user", pk=recipient.pk)
+        # Save in-app message
+        Message.objects.create(sender=request.user, recipient=recipient, subject=subject, body=message_text)
+        # Send email notification (keeps existing behavior)
+        sent = send_profile_message(request.user, recipient, f"{subject}\n\n{message_text}" if subject else message_text)
+        if sent:
+            messages.success(request, "Your message has been sent!")
+        else:
+            messages.success(request, "Message saved. Recipient has no email address so no email was sent.")
+        return redirect("accounts:profile_detail", username=recipient.username)
+
+    # GET: render compose form
+    return render(request, "accounts/message_user.html", {"recipient": recipient})
+
+@login_required
+def save_profile_view(request, pk):
+    """Allow recruiters to save/unsave a user's profile. Redirect to saved list."""
+    target_user = get_object_or_404(User, pk=pk)
+
+    # Ensure viewer is authenticated recruiter (not the profile owner)
+    if not request.user.is_authenticated or request.user == target_user:
+        messages.error(request, "Not allowed.")
+        return redirect('accounts:profile_detail', username=target_user.username)
+
+    # Verify viewer is a recruiter
+    viewer_profile = getattr(request.user, "profile", None)
+    if not viewer_profile or not getattr(viewer_profile, "is_recruiter", False):
+        return HttpResponseForbidden("Only recruiters may save profiles.")
+
+    # Toggle saved state
+    obj, created = SavedProfile.objects.get_or_create(recruiter=request.user, saved_user=target_user)
+    if not created:
+        # already saved -> unsave
+        obj.delete()
+        messages.success(request, f"Unsaved {target_user.username}.")
+    else:
+        messages.success(request, f"Saved {target_user.username} to your list.")
+
+    # Redirect recruiter to their saved profiles page
+    return redirect('accounts:saved_profiles')
 
 @login_required
 def edit_profile(request):
@@ -57,10 +110,16 @@ def profile_detail(request, username):
 		except Profile.DoesNotExist:
 			viewer_is_recruiter = False
 
+	# Determine whether current viewer (if recruiter) has saved this profile
+	is_saved = False
+	if request.user.is_authenticated and viewer_is_recruiter:
+		is_saved = SavedProfile.objects.filter(recruiter=request.user, saved_user=user).exists()
+
 	return render(request, 'accounts/profile_detail.html', {
 		'profile': profile,
 		'profile_user': user,
 		'viewer_is_recruiter': viewer_is_recruiter,
+		'is_saved': is_saved,
 	})
 
 
@@ -144,4 +203,67 @@ class CustomLoginView(LoginView):
 			return reverse('accounts:profile_detail', kwargs={'username': user.username})
 		except Exception:
 			return super().get_success_url()
-			
+
+@login_required
+def saved_profiles(request):
+	"""List of profiles the logged-in recruiter has saved."""
+	# ensure recruiter
+	profile = getattr(request.user, "profile", None)
+	if not profile or not getattr(profile, "is_recruiter", False):
+		return HttpResponseForbidden("Not authorized")
+
+	entries = SavedProfile.objects.filter(recruiter=request.user).select_related('saved_user').order_by('-saved_at')
+
+	# Build a list of minimal data for templating (avoid heavy DB lookups)
+	result = []
+	for e in entries:
+		u = e.saved_user
+		# attempt to get profile (may not exist)
+		try:
+			uprof = u.profile
+		except Exception:
+			uprof = None
+		result.append({
+			'user': u,
+			'profile': uprof,
+			'saved_at': e.saved_at,
+		})
+
+	return render(request, 'accounts/saved_profiles.html', {'entries': result})
+
+@login_required
+def messages_inbox(request):
+    """Simple inbox showing messages sent to the logged-in user."""
+    msgs = Message.objects.filter(recipient=request.user).select_related("sender").order_by("-sent_at")
+    return render(request, "accounts/messages_list.html", {"messages": msgs})
+
+@login_required
+def message_detail(request, pk):
+    """
+    View a single message (recipient only). Mark as read. Allow reply via POST (creates Message and emails).
+    """
+    msg = get_object_or_404(Message, pk=pk)
+    # only recipient or sender may view (basic protective check)
+    if request.user != msg.recipient and request.user != msg.sender:
+        return HttpResponseForbidden("Not authorized to view this message.")
+
+    # Mark read if recipient views it
+    if request.user == msg.recipient and not msg.read:
+        msg.read = True
+        msg.save(update_fields=["read"])
+
+    if request.method == "POST":
+        # reply form: create new message from current user to the other party
+        reply_text = request.POST.get("reply", "").strip()
+        reply_subject = request.POST.get("subject", "").strip() or f"Re: {msg.subject}" if msg.subject else f"Re:"
+        if not reply_text:
+            messages.error(request, "Please enter a reply message.")
+            return redirect("accounts:message_detail", pk=msg.pk)
+        recipient_user = msg.sender if request.user == msg.recipient else msg.recipient
+        Message.objects.create(sender=request.user, recipient=recipient_user, subject=reply_subject, body=reply_text)
+        send_profile_message(request.user, recipient_user, f"{reply_subject}\n\n{reply_text}")
+        messages.success(request, "Reply sent.")
+        return redirect("accounts:messages_inbox")
+
+    return render(request, "accounts/message_detail.html", {"message": msg})
+

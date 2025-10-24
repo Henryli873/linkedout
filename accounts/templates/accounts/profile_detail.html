@@ -17,6 +17,41 @@
           {% endif %}
         {% endif %}
       </div>
+
+      {# Button group: Email, Message, Save #}
+      <div class="ms-auto d-flex gap-2">
+        {# Email: only when email exists AND (owner OR profile.email_visible OR viewer is NOT a recruiter) #}
+        {% if profile_user.email %}
+          {% if request.user == profile_user %}
+            <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
+          {% else %}
+            {% if profile and profile.email_visible %}
+              <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
+            {% else %}
+              {% if viewer_is_recruiter|default:False %}
+                <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {# Message: authenticated users (not the profile owner) #}
+        {% if request.user.is_authenticated and request.user != profile_user %}
+          <a class="btn btn-primary" href="{% url 'accounts:message_user' profile_user.pk %}">Message</a>
+        {% endif %}
+
+        {# Save/Unsave: only visible to authenticated recruiters (not owner) #}
+        {% if request.user.is_authenticated and request.user != profile_user and viewer_is_recruiter|default:False %}
+          <form method="post" action="{% url 'accounts:save_profile' profile_user.pk %}" class="m-0 p-0">
+            {% csrf_token %}
+            {% if is_saved %}
+              <button type="submit" class="btn btn-outline-danger">Unsave</button>
+            {% else %}
+              <button type="submit" class="btn btn-outline-secondary">Save</button>
+            {% endif %}
+          </form>
+        {% endif %}
+      </div>
     </div>
 
     {% if profile %}
