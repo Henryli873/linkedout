@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Email {{ recipient.get_full_name|default:recipient.username }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Send an email to {{ recipient.get_full_name|default:recipient.username }}</h5>
+      <p class="text-muted small">This will send a real email to {{ recipient.email }}. Your email may be used as Reply-To so they can respond directly.</p>
+      <form method="post" action="">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Subject</label>
+          <input type="text" name="subject" class="form-control" placeholder="Subject">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Message</label>
+          <textarea name="body" class="form-control" rows="8" required></textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Send Email</button>
+          <a class="btn btn-secondary" href="{% url 'accounts:profile_detail' username=recipient.username %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

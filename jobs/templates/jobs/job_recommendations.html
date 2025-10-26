@@ -145,6 +145,11 @@
                     {% endif %}
                   </form>
                   
+                  {% if profile.user.email %}
+                  <a href="{% url 'accounts:email_user' profile.user.pk %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-paper-plane"></i> Email
+                  </a>
+                  {% endif %}
                   <a href="{% url 'accounts:message_user' profile.user.pk %}" class="btn btn-outline-info btn-sm">
                     <i class="fas fa-envelope"></i> Message
                   </a>

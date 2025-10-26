@@ -20,24 +20,29 @@
 
       {# Button group: Email, Message, Save #}
       <div class="ms-auto d-flex gap-2">
-        {# Email: only when email exists AND (owner OR profile.email_visible OR viewer is NOT a recruiter) #}
+        {# Email (mailto) shown only if owner or candidate opted-in; hide for recruiters (except owner) to avoid duplicate with recruiter Email form #}
         {% if profile_user.email %}
           {% if request.user == profile_user %}
             <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
           {% else %}
-            {% if profile and profile.email_visible %}
+            {% if profile and profile.email_visible and not viewer_is_recruiter|default:False %}
               <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
-            {% else %}
-              {% if viewer_is_recruiter|default:False %}
-                <a class="btn btn-outline-primary" href="mailto:{{ profile_user.email }}">Email</a>
-              {% endif %}
             {% endif %}
           {% endif %}
         {% endif %}
 
-        {# Message: authenticated users (not the profile owner) #}
+        {# In-platform messaging and direct email for recruiters #}
         {% if request.user.is_authenticated and request.user != profile_user %}
-          <a class="btn btn-primary" href="{% url 'accounts:message_user' profile_user.pk %}">Message</a>
+          {% if viewer_is_recruiter|default:False %}
+            {% if not profile or not profile.is_recruiter %}
+              {% if profile_user.email %}<a class="btn btn-outline-primary" href="{% url 'accounts:email_user' profile_user.pk %}">Email</a>{% endif %}
+              <a class="btn btn-primary" href="{% url 'accounts:message_user' profile_user.pk %}">Message</a>
+            {% else %}
+              <a class="btn btn-primary" href="{% url 'accounts:message_user' profile_user.pk %}">Message</a>
+            {% endif %}
+          {% else %}
+            <a class="btn btn-primary" href="{% url 'accounts:message_user' profile_user.pk %}">Message</a>
+          {% endif %}
         {% endif %}
 
         {# Save/Unsave: only visible to authenticated recruiters (not owner) #}

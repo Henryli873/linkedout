@@ -12,7 +12,7 @@ from django.http import HttpResponseForbidden
 import re
 from django.contrib.auth.models import User
 from django.contrib import messages
-from .emails import send_profile_message
+from .emails import send_profile_message, send_direct_email
 from jobs.models import SavedProfile, Message
 
 @login_required
@@ -37,6 +37,48 @@ def message_user_view(request, pk):
 
     # GET: render compose form
     return render(request, "accounts/message_user.html", {"recipient": recipient})
+
+@login_required
+def email_user_view(request, pk):
+    """Recruiter-only: compose and send a real email to an applicant's email address."""
+    recipient = get_object_or_404(User, pk=pk)
+
+    # Prevent emailing self
+    if request.user == recipient:
+        messages.error(request, "You cannot email yourself.")
+        return redirect("accounts:profile_detail", username=recipient.username)
+
+    # Ensure the sender is a recruiter
+    viewer_profile = getattr(request.user, "profile", None)
+    if not viewer_profile or not getattr(viewer_profile, "is_recruiter", False):
+        return HttpResponseForbidden("Only recruiters may send emails to applicants.")
+
+    # Optionally prevent emailing other recruiters (intended for applicants)
+    try:
+        rprof = recipient.profile
+        if getattr(rprof, "is_recruiter", False):
+            messages.error(request, "This action is intended for contacting applicants.")
+            return redirect("accounts:profile_detail", username=recipient.username)
+    except Exception:
+        # recipient may not have a profile; allow sending if they have an email
+        pass
+
+    if request.method == "POST":
+        subject = request.POST.get("subject", "").strip()
+        body = request.POST.get("body", "").strip()
+        if not body:
+            messages.error(request, "Please enter a message before sending.")
+            return redirect("accounts:email_user", pk=recipient.pk)
+
+        sent = send_direct_email(request.user, recipient, subject, body)
+        if sent:
+            display = recipient.get_full_name() or recipient.username
+            messages.success(request, f"Email sent to {display}.")
+        else:
+            messages.error(request, "Failed to send email. The recipient may not have an email address or the email service is not configured.")
+        return redirect("accounts:profile_detail", username=recipient.username)
+
+    return render(request, "accounts/email_user.html", {"recipient": recipient})
 
 @login_required
 def save_profile_view(request, pk):

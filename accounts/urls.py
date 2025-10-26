@@ -8,6 +8,7 @@ urlpatterns = [
     path('signup/', views.signup, name='signup'),
     path('applicants/', views.find_applicants, name='find_applicants'),
     path('message/<int:pk>/', views.message_user_view, name='message_user'),
+    path('email/<int:pk>/', views.email_user_view, name='email_user'),
     path('messages/', views.messages_inbox, name='messages_inbox'),
     path('messages/<int:pk>/', views.message_detail, name='message_detail'),
     path('saved/', views.saved_profiles, name='saved_profiles'),
