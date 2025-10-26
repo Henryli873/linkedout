@@ -694,3 +694,115 @@ def geocode_address(q):
             pass
 
     return None
+
+
+@login_required
+def recruiter_job_markers(request):
+    """Return the logged-in recruiter's own jobs with existing coordinates (if any)."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
+        return JsonResponse({"error": "Not authorized"}, status=403)
+
+    jobs_qs = Job.objects.filter(owner=request.user).order_by("-posted_at")
+    data = [
+        {
+            "id": j.pk,
+            "title": j.title,
+            "company": j.company,
+            "lat": j.latitude,
+            "lon": j.longitude,
+        }
+        for j in jobs_qs
+    ]
+    return JsonResponse({"jobs": data})
+
+
+@login_required
+def recruiter_set_job_location(request):
+    """Allow a recruiter to set latitude/longitude for one of their job postings."""
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
+        return JsonResponse({"error": "Not authorized"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    job_id = None
+    lat = None
+    lon = None
+
+    # Prefer JSON payload if provided
+    if request.content_type and "application/json" in request.content_type:
+        try:
+            body = json.loads(request.body.decode("utf-8"))
+            job_id = body.get("job_id")
+            lat = body.get("lat")
+            lon = body.get("lon")
+        except Exception:
+            pass
+
+    # Fallback to form-encoded
+    if job_id is None:
+        job_id = request.POST.get("job_id")
+        lat = request.POST.get("lat", lat)
+        lon = request.POST.get("lon", lon)
+
+    # Validate target job and ownership
+    try:
+        job = Job.objects.get(pk=job_id, owner=request.user)
+    except (Job.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({"error": "Job not found"}, status=404)
+
+    # Validate coordinates
+    try:
+        lat = float(lat)
+        lon = float(lon)
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            raise ValueError("Out-of-range coordinates")
+    except Exception:
+        return JsonResponse({"error": "Invalid coordinates"}, status=400)
+
+    # Persist
+    job.latitude = lat
+    job.longitude = lon
+    job.save(update_fields=["latitude", "longitude"])
+
+    return JsonResponse({"ok": True, "job_id": job.pk, "lat": lat, "lon": lon})
+
+
+@login_required
+def recruiter_applicants(request):
+    """Return applicants (with coordinates) for jobs owned by the logged-in recruiter.
+    Optional GET param: job_id to filter by a specific job the applicant applied to.
+    """
+    profile = getattr(request.user, "profile", None)
+    if not profile or not profile.is_recruiter:
+        return JsonResponse({"error": "Not authorized"}, status=403)
+
+    job_id = request.GET.get("job_id")
+    qs = (
+        Application.objects.select_related("job", "user")
+        .filter(job__owner=request.user)
+        .exclude(applicant_latitude__isnull=True)
+        .exclude(applicant_longitude__isnull=True)
+    )
+    if job_id:
+        try:
+            qs = qs.filter(job__pk=int(job_id))
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "Invalid job_id"}, status=400)
+
+    apps = []
+    for app in qs:
+        apps.append({
+            "id": app.pk,
+            "username": app.user.username,
+            "job_id": app.job_id,
+            "job_title": app.job.title,
+            "lat": app.applicant_latitude,
+            "lon": app.applicant_longitude,
+            "location": app.applicant_location or "",
+            "status": app.status,
+            "submitted_at": app.submitted_at.isoformat(),
+        })
+
+    return JsonResponse({"applications": apps})

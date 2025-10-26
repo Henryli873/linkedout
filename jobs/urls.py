@@ -25,4 +25,8 @@ urlpatterns = [
     path("<int:job_id>/recommendations/", views.job_recommendations, name="job_recommendations"),
     path('map/', views.interactive_map, name='interactive_map'),
     path('map/nearby/', views.jobs_nearby, name='jobs_nearby'),
+    # Recruiter map APIs
+    path('map/recruiter/jobs/', views.recruiter_job_markers, name='recruiter_job_markers'),
+    path('map/recruiter/set-location/', views.recruiter_set_job_location, name='recruiter_set_job_location'),
+    path('map/recruiter/applicants/', views.recruiter_applicants, name='recruiter_applicants'),
 ]

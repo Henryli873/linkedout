@@ -48,6 +48,45 @@
       <button id="map-search-btn" class="btn btn-primary me-2">Search</button>
       <button id="use-my-location" class="btn btn-outline-secondary">Use my location</button>
     </div>
+
+    {% if user.is_authenticated and user_profile and user_profile.is_recruiter %}
+    <div id="recruiter-panel" class="card border-0 bg-light mb-2">
+      <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-auto"><strong>Pin a posting:</strong></div>
+          <div class="col-sm-6">
+            <select id="recruiter-job-select" class="form-select form-select-sm">
+              <option value="">Select one of your job postings…</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button id="recruiter-pin-btn" class="btn btn-sm btn-warning">Start pinning</button>
+            <button id="recruiter-cancel-pin" class="btn btn-sm btn-outline-secondary d-none">Cancel</button>
+          </div>
+          <div class="col-12 small text-muted mt-1">
+            Click "Start pinning", then click anywhere on the map to set the location for the selected job.
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-center mt-2">
+          <div class="col-auto"><strong>Applicants:</strong></div>
+          <div class="col-auto form-check">
+            <input class="form-check-input" type="checkbox" id="show-applicants">
+            <label class="form-check-label" for="show-applicants">Show on map</label>
+          </div>
+          <div class="col-sm-6">
+            <select id="applicants-job-filter" class="form-select form-select-sm">
+              <option value="">All jobs</option>
+            </select>
+          </div>
+          <div class="col-12 small text-muted">
+            Toggle to display applicants’ locations. Use the filter to restrict to a specific job.
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="small text-muted mb-2">
       <i class="fas fa-info-circle"></i> Right click on the map to set your location
     </div>
@@ -283,6 +322,200 @@ async function fetchNearby(lat, lon, radius_miles=5, q='') {
   map.setView([20,0], 2);
   // add legend explaining marker colors
   addMapLegend(map);
+
+  // Recruiter pinning controls
+  const recruiterPanel = document.getElementById('recruiter-panel');
+  let recruiterPinMode = false;
+  let applicantsVisible = false;
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+  }
+
+  async function loadRecruiterJobs() {
+    const select = document.getElementById('recruiter-job-select');
+    const filter = document.getElementById('applicants-job-filter');
+    if (!select) return;
+    try {
+      const res = await fetch('/search/map/recruiter/jobs/');
+      const data = await res.json();
+      if (res.ok && data.jobs) {
+        const prev = select.value;
+        select.innerHTML = '<option value="">Select one of your job postings…</option>';
+        data.jobs.forEach(j => {
+          const opt = document.createElement('option');
+          opt.value = j.id;
+          opt.textContent = `${j.title} ${j.company ? '— ' + j.company : ''}`;
+          select.appendChild(opt);
+        });
+        if (prev) select.value = prev;
+
+        // Populate applicants job filter as well
+        if (filter) {
+          const prevF = filter.value;
+          filter.innerHTML = '<option value="">All jobs</option>';
+          data.jobs.forEach(j => {
+            const opt2 = document.createElement('option');
+            opt2.value = j.id;
+            opt2.textContent = `${j.title} ${j.company ? '— ' + j.company : ''}`;
+            filter.appendChild(opt2);
+          });
+          if (prevF) filter.value = prevF;
+        }
+
+        renderRecruiterMarkers(data.jobs);
+
+        // Refresh applicants layer if visible
+        if (applicantsVisible) {
+          await loadApplicants(filter ? filter.value : '');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load recruiter jobs', e);
+    }
+  }
+
+  function renderRecruiterMarkers(jobs) {
+    if (map._recruiterLayer) map.removeLayer(map._recruiterLayer);
+    const layer = L.layerGroup();
+    jobs.forEach(j => {
+      if (j.lat != null && j.lon != null) {
+        const marker = L.circleMarker(
+          [Number(j.lat), Number(j.lon)],
+          { radius: 8, color: '#28a745', fillColor: '#28a745', fillOpacity: 0.9 }
+        ).bindPopup(`<strong>${j.title}</strong>${j.company ? '<br>' + j.company : ''}<br><a href="/search/${j.id}/">View</a>`);
+        marker.addTo(layer);
+      }
+    });
+    layer.addTo(map);
+    map._recruiterLayer = layer;
+  }
+
+  async function loadApplicants(jobId = '') {
+    try {
+      let url = '/search/map/recruiter/applicants/';
+      if (jobId) {
+        url += `?job_id=${encodeURIComponent(jobId)}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok && data.applications) {
+        renderApplicantsMarkers(data.applications);
+      }
+    } catch (e) {
+      console.warn('Failed to load applicants', e);
+    }
+  }
+
+  function renderApplicantsMarkers(apps) {
+    if (map._applicantsLayer) map.removeLayer(map._applicantsLayer);
+    const layer = L.layerGroup();
+    apps.forEach(a => {
+      if (a.lat != null && a.lon != null) {
+        const marker = L.circleMarker(
+          [Number(a.lat), Number(a.lon)],
+          { radius: 6, color: '#6f42c1', fillColor: '#6f42c1', fillOpacity: 0.9 }
+        ).bindPopup(
+          `<strong>${a.username}</strong><br>${a.job_title}${a.location ? '<br>' + a.location : ''}`
+        );
+        marker.addTo(layer);
+      }
+    });
+    layer.addTo(map);
+    map._applicantsLayer = layer;
+  }
+
+  if (recruiterPanel) {
+    const pinBtn = document.getElementById('recruiter-pin-btn');
+    const cancelBtn = document.getElementById('recruiter-cancel-pin');
+    const jobSelect = document.getElementById('recruiter-job-select');
+
+    pinBtn && pinBtn.addEventListener('click', () => {
+      if (!jobSelect.value) {
+        alert('Select one of your job postings first.');
+        return;
+      }
+      recruiterPinMode = true;
+      pinBtn.disabled = true;
+      cancelBtn.classList.remove('d-none');
+      recruiterPanel.classList.add('border', 'border-warning');
+    });
+
+    cancelBtn && cancelBtn.addEventListener('click', () => {
+      recruiterPinMode = false;
+      pinBtn.disabled = false;
+      cancelBtn.classList.add('d-none');
+      recruiterPanel.classList.remove('border', 'border-warning');
+    });
+
+    map.on('click', async (e) => {
+      if (!recruiterPinMode) return;
+      const jobId = jobSelect.value;
+      if (!jobId) {
+        alert('Select one of your job postings first.');
+        return;
+      }
+      const lat = e.latlng.lat;
+      const lon = e.latlng.lng;
+
+      try {
+        const res = await fetch('/search/map/recruiter/set-location/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken') || ''
+          },
+          body: JSON.stringify({ job_id: jobId, lat, lon })
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          alert('Job location saved.');
+          recruiterPinMode = false;
+          pinBtn.disabled = false;
+          cancelBtn.classList.add('d-none');
+          recruiterPanel.classList.remove('border', 'border-warning');
+          loadRecruiterJobs();
+        } else {
+          alert(data.error || 'Failed to save location.');
+        }
+      } catch (err) {
+        alert('Network error while saving location.');
+      }
+    });
+
+    const showAppsCb = document.getElementById('show-applicants');
+    const appsFilter = document.getElementById('applicants-job-filter');
+
+    if (showAppsCb) {
+      showAppsCb.addEventListener('change', async () => {
+        applicantsVisible = showAppsCb.checked;
+        if (applicantsVisible) {
+          await loadApplicants(appsFilter ? appsFilter.value : '');
+        } else {
+          if (map._applicantsLayer) map.removeLayer(map._applicantsLayer);
+          map._applicantsLayer = null;
+        }
+      });
+    }
+
+    if (appsFilter) {
+      appsFilter.addEventListener('change', async () => {
+        if (applicantsVisible) {
+          await loadApplicants(appsFilter.value || '');
+        }
+      });
+    }
+
+    await loadRecruiterJobs();
+
+    // If the toggle is pre-checked, load applicants immediately
+    if (showAppsCb && showAppsCb.checked) {
+      await loadApplicants(appsFilter ? appsFilter.value : '');
+    }
+  }
+
   let userMarker = null;
   let userCircle = null;
   let searchMarker = null;
