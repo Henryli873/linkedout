@@ -47,9 +47,8 @@
   {% if recommendations %}
     <div class="mb-3">
       <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 
-        Found {{ recommendations|length }} qualified candidates. 
-        Recommendations are based on skills match, desired positions, location proximity, and company preferences.
+        <i class="fas fa-info-circle"></i>
+        Candidates are ranked by relevance based on the overlap between the job title/description and each candidate's skills and experience.
       </div>
     </div>
 
@@ -179,9 +178,9 @@
       </p>
       <div class="text-start" style="max-width: 500px; margin: 0 auto;">
         <ul class="text-muted">
-          <li>All qualified candidates have already applied</li>
-          <li>The job requirements are very specific</li>
-          <li>There aren't many candidates with matching skills in the system yet</li>
+          <li>Many strong candidates may have already applied</li>
+          <li>The job description may be too generic or too specific for effective keyword overlap</li>
+          <li>There may not be enough candidate profiles in the system yet</li>
         </ul>
       </div>
       <div class="mt-4">
