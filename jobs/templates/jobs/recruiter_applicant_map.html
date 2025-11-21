@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #map { height: 75vh; }
+  .legend {
+    background: rgba(255,255,255,0.95);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 12px;
+    line-height: 18px;
+    color: #333;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
+  .legend i {
+    width: 18px;
+    height: 18px;
+    float: left;
+    margin-right: 8px;
+    opacity: 0.9;
+  }
+  .legend .job-marker {
+    background: #007bff;
+    border-radius: 50%;
+  }
+  .legend .applicant-marker {
+    background: #28a745;
+    border-radius: 50%;
+  }
+  .map-controls {
+    margin-bottom: 15px;
+  }
+  .stats-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Applicant Distribution Map</h2>
+    <div class="text-muted">
+      <small>View where your applicants are located</small>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <div class="stats-card text-center">
+        <h4 id="job-count" class="mb-1 text-primary">-</h4>
+        <small class="text-muted">Your Jobs Posted</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card text-center">
+        <h4 id="applicant-count" class="mb-1 text-success">-</h4>
+        <small class="text-muted">Total Applicants</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card text-center">
+        <h4 id="locations-count" class="mb-1 text-info">-</h4>
+        <small class="text-muted">Unique Locations</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card text-center">
+        <h4 id="avg-distance" class="mb-1 text-warning">-</h4>
+        <small class="text-muted">Avg Distance (mi)</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Controls -->
+  <div class="map-controls">
+    <div class="d-flex align-items-center gap-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="show-jobs" checked>
+        <label class="form-check-label" for="show-jobs">
+          <span class="badge bg-primary">●</span> Show Job Locations
+        </label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="show-applicants" checked>
+        <label class="form-check-label" for="show-applicants">
+          <span class="badge bg-success">●</span> Show Applicant Locations
+        </label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="cluster-applicants" checked>
+        <label class="form-check-label" for="cluster-applicants">
+          Cluster Nearby Applicants
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+<script>
+let map;
+let jobMarkers = [];
+let applicantMarkers = [];
+let applicantClusterGroup;
+let jobData = [];
+let applicantData = [];
+
+// Initialize map
+function initMap() {
+  map = L.map('map').setView([39.8283, -98.5795], 4); // Center on USA
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Add legend
+  addLegend();
+  
+  // Initialize cluster group
+  applicantClusterGroup = L.markerClusterGroup({
+    iconCreateFunction: function(cluster) {
+      const count = cluster.getChildCount();
+      let className = 'marker-cluster-small';
+      if (count > 10) className = 'marker-cluster-medium';
+      if (count > 25) className = 'marker-cluster-large';
+      
+      return L.divIcon({
+        html: '<div><span>' + count + '</span></div>',
+        className: 'marker-cluster ' + className,
+        iconSize: L.point(40, 40)
+      });
+    },
+    maxClusterRadius: 50
+  });
+}
+
+// Add legend to map
+function addLegend() {
+  const legend = L.control({position: 'bottomright'});
+  legend.onAdd = function(map) {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = `
+      <div><i class="job-marker"></i> Your Job Postings</div>
+      <div><i class="applicant-marker"></i> Applicant Locations</div>
+      <div style="margin-top: 5px; font-size: 10px;">
+        Click markers for details
+      </div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+}
+
+// Load data from API
+async function loadData() {
+  try {
+    const response = await fetch('/jobs/recruiter/applicant-map/data/');
+    const data = await response.json();
+    
+    if (data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    
+    jobData = data.jobs;
+    applicantData = data.applicants;
+    
+    updateStats();
+    renderMarkers();
+    fitMapToData();
+  } catch (error) {
+    console.error('Error loading data:', error);
+    alert('Failed to load map data');
+  }
+}
+
+// Update statistics
+function updateStats() {
+  document.getElementById('job-count').textContent = jobData.length;
+  document.getElementById('applicant-count').textContent = applicantData.length;
+  
+  const uniqueLocations = new Set(applicantData.map(a => `${a.lat},${a.lon}`)).size;
+  document.getElementById('locations-count').textContent = uniqueLocations;
+  
+  // Calculate average distance from jobs to applicants
+  if (jobData.length > 0 && applicantData.length > 0) {
+    let totalDistance = 0;
+    let count = 0;
+    
+    jobData.forEach(job => {
+      applicantData.forEach(applicant => {
+        const distance = calculateDistance(job.lat, job.lon, applicant.lat, applicant.lon);
+        totalDistance += distance;
+        count++;
+      });
+    });
+    
+    const avgDistance = count > 0 ? (totalDistance / count).toFixed(1) : 0;
+    document.getElementById('avg-distance').textContent = avgDistance;
+  } else {
+    document.getElementById('avg-distance').textContent = '0';
+  }
+}
+
+// Calculate distance between two points (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 3959; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Render markers on map
+function renderMarkers() {
+  clearMarkers();
+  
+  const showJobs = document.getElementById('show-jobs').checked;
+  const showApplicants = document.getElementById('show-applicants').checked;
+  const clusterApplicants = document.getElementById('cluster-applicants').checked;
+  
+  // Add job markers
+  if (showJobs) {
+    jobData.forEach(job => {
+      const marker = L.circleMarker([job.lat, job.lon], {
+        color: '#007bff',
+        fillColor: '#007bff',
+        fillOpacity: 0.8,
+        radius: 8,
+        weight: 2
+      }).bindPopup(`
+        <div class="popup-content">
+          <h6>${job.title}</h6>
+          <p class="mb-1"><strong>${job.company}</strong></p>
+          <p class="mb-1">${job.location}</p>
+          <p class="mb-0 text-muted">${job.application_count} applications</p>
+          <div class="mt-2">
+            <a href="/jobs/${job.id}/" class="btn btn-sm btn-outline-primary">View Job</a>
+          </div>
+        </div>
+      `);
+      
+      jobMarkers.push(marker);
+      marker.addTo(map);
+    });
+  }
+  
+  // Add applicant markers
+  if (showApplicants) {
+    applicantData.forEach(applicant => {
+      const marker = L.circleMarker([applicant.lat, applicant.lon], {
+        color: '#28a745',
+        fillColor: '#28a745',
+        fillOpacity: 0.7,
+        radius: 6,
+        weight: 2
+      }).bindPopup(`
+        <div class="popup-content">
+          <h6>${applicant.applicant_name}</h6>
+          <p class="mb-1">Applied to: <strong>${applicant.job_title}</strong></p>
+          <p class="mb-1">Location: ${applicant.location}</p>
+          <p class="mb-1">Status: <span class="badge bg-info">${applicant.status}</span></p>
+          <p class="mb-0 text-muted">Applied: ${new Date(applicant.submitted_at).toLocaleDateString()}</p>
+          <div class="mt-2">
+            <a href="/accounts/${applicant.applicant_username}/" class="btn btn-sm btn-outline-success">View Profile</a>
+          </div>
+        </div>
+      `);
+      
+      applicantMarkers.push(marker);
+      
+      if (clusterApplicants) {
+        applicantClusterGroup.addLayer(marker);
+      } else {
+        marker.addTo(map);
+      }
+    });
+    
+    if (clusterApplicants) {
+      map.addLayer(applicantClusterGroup);
+    }
+  }
+}
+
+// Clear all markers
+function clearMarkers() {
+  jobMarkers.forEach(marker => map.removeLayer(marker));
+  applicantMarkers.forEach(marker => map.removeLayer(marker));
+  map.removeLayer(applicantClusterGroup);
+  
+  jobMarkers = [];
+  applicantMarkers = [];
+  applicantClusterGroup.clearLayers();
+}
+
+// Fit map to show all data
+function fitMapToData() {
+  const allPoints = [...jobData, ...applicantData];
+  
+  if (allPoints.length === 0) return;
+  
+  const bounds = L.latLngBounds();
+  allPoints.forEach(point => {
+    bounds.extend([point.lat, point.lon]);
+  });
+  
+  map.fitBounds(bounds, { padding: [20, 20] });
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  initMap();
+  loadData();
+  
+  // Control event listeners
+  document.getElementById('show-jobs').addEventListener('change', renderMarkers);
+  document.getElementById('show-applicants').addEventListener('change', renderMarkers);
+  document.getElementById('cluster-applicants').addEventListener('change', renderMarkers);
+});
+</script>
+{% endblock %}
