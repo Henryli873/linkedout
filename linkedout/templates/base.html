@@ -64,7 +64,9 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{% url 'accounts:profile_detail' user.username %}">My Profile</a></li>
-                                <li><a class="dropdown-item" href="{% url 'accounts:messages_inbox' %}">Messages</a></li>
+                                {% if user.is_authenticated and user_profile and not user_profile.is_recruiter %}
+                                    <li><a class="dropdown-item" href="{% url 'accounts:messages_inbox' %}">Messages</a></li>
+                                {% endif %}
                                 <li><a class="dropdown-item" href="{% url 'accounts:edit_profile' %}">Edit Profile</a></li>
                                 <li><a class="dropdown-item" href="#">Settings</a></li>
                                                                 <li><hr class="dropdown-divider"></li>

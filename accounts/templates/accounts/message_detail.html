@@ -13,7 +13,7 @@
       <p class="card-text" style="white-space:pre-wrap;">{{ message.body }}</p>
 
       <hr>
-
+      <!--
       <h6 class="mb-2">Reply</h6>
       <form method="post" action="">
         {% csrf_token %}
@@ -24,10 +24,11 @@
           <textarea name="reply" class="form-control" rows="6" required></textarea>
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-primary" type="submit">Send Reply</button>
+         <button class="btn btn-primary" type="submit">Send Reply</button> 
           <a class="btn btn-secondary" href="{% url 'accounts:messages_inbox' %}">Cancel</a>
         </div>
       </form>
+      -->
     </div>
   </div>
 </div>
