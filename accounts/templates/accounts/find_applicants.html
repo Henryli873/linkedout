@@ -4,164 +4,264 @@
 
 {% block extra_css %}
 <style>
-.search-container {
-  position: relative;
-}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background-color: #f9fafb; font-family: system-ui, sans-serif; }
 
-.autocomplete-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #ccc;
-  border-top: none;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 1000;
-  display: none;
-}
+    .candidate-card-link {
+        display: block;
+        text-decoration: none; /* remove underline */
+        color: inherit;        /* use normal text color */
+    }
 
-.autocomplete-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
-}
+    .candidate-card-link:hover .candidate-card {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+        transition: all 0.2s ease-in-out;
+    }
 
-.autocomplete-item:hover {
-  background-color: #f8f9fa;
-}
 
-.autocomplete-item.selected {
-  background-color: #007bff;
-  color: white;
-}
+    .page-container {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 48px 24px;
+    }
+
+    h1 {
+        font-size: 2.25rem;
+        font-weight: 800;
+        color: #111827;
+        margin-bottom: 32px;
+    }
+
+    .search-card {
+        background: #ffffff;
+        padding: 24px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 32px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .search-container { position: relative; }
+    .autocomplete-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: white; border: 1px solid #ccc; border-top: none;
+      max-height: 200px; overflow-y: auto; z-index: 1000;
+      display: none;
+    }
+    .autocomplete-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee; }
+    .autocomplete-item:hover { background-color: #f8f9fa; }
+    .autocomplete-item.selected { background-color: #007bff; color: white; }
+
+    .candidates-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .candidate-card {
+        background-color: #ffffff;
+        padding: 24px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: box-shadow 0.2s;
+    }
+    .candidate-card:hover {
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .candidate-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 4px;
+    }
+
+    .candidate-title {
+        font-size: 1rem;
+        color: #374151;
+        margin-bottom: 12px;
+    }
+
+    .candidate-info {
+        font-size: 0.875rem;
+        color: #4b5563;
+        margin-bottom: 16px;
+    }
+
+    .separator {
+        margin: 0 8px;
+        color: #d1d5db;
+    }
+
+    .skills-container {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .skill-badge {
+        padding: 6px 12px;
+        background-color: #dbeafe;
+        color: #1d4ed8;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .view-button {
+        margin-top: 16px;
+        padding: 6px 12px;
+        font-size: 0.875rem;
+        border-radius: 6px;
+        border: 1px solid #3b82f6;
+        color: #3b82f6;
+        background: white;
+        cursor: pointer;
+        transition: 0.2s;
+        text-decoration: none;
+    }
+    .view-button:hover {
+        background: #eff6ff;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center">
-    <h2>Find Applicants</h2>
-    <div class="text-muted small">{{ profiles|length }} results</div>
-  </div>
+<div class="page-container">
 
-  <div class="card mt-3">
-    <div class="card-body">
-      <form method="get" class="row gx-2 gy-2 align-items-end">
-        <div class="col-auto">
-          <label class="form-label small">Query</label>
-          <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="keywords">
-        </div>
-        <div class="col-auto">
-          <label class="form-label small">Skills</label>
-          <input type="text" name="skills" value="{{ skills }}" class="form-control form-control-sm" placeholder="e.g. Python, Django">
-        </div>
-        <div class="col-auto">
-          <label class="form-label small">Location</label>
-          <div class="search-container">
-            <input type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, State or address" autocomplete="off">
-            <div class="autocomplete-dropdown"></div>
-          </div>
-        </div>
-        <div class="col-auto">
-          <label class="form-label small">Experience</label>
-          <input type="text" name="experience" value="{{ experience }}" class="form-control form-control-sm" placeholder="e.g. 3 years, internship">
-        </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-primary btn-sm">Search</button>
-        </div>
-      </form>
-      <div class="form-text mt-1">Tip: separate multiple skills with commas.</div>
-    </div>
-  </div>
+    <h1>Find Applicants</h1>
 
-  {% if profiles %}
-    <div class="row gy-3 mt-3">
-      {% for p in profiles %}
-        <div class="col-12">
-          <div class="card">
-            <div class="card-body d-flex justify-content-between align-items-start">
-              <div>
-                <h5 class="mb-1">{{ p.user.get_full_name|default:p.user.username }}</h5>
-                {% if p.headline_visible and p.headline %}
-                  <div class="text-muted small">{{ p.headline }}</div>
-                {% endif %}
-                <div class="mt-2">
-                  {% if p.skills_visible and p.skills %}
-                    <div><strong>Skills:</strong> {{ p.skills }}</div>
-                  {% endif %}
-                  {% if p.experience_visible and p.experience %}
-                    <div class="mt-1"><strong>Experience:</strong> {{ p.experience|truncatechars:160 }}</div>
-                  {% endif %}
-                  {% if p.education_visible and p.education %}
-                    <div class="mt-1"><strong>Education:</strong> {{ p.education|truncatechars:120 }}</div>
-                  {% endif %}
-                  {% if p.location %}
-                    <div class="mt-1 text-muted small">{{ p.location }}</div>
-                  {% endif %}
-                </div>
-              </div>
-              <div class="ms-3 d-flex flex-column align-items-end">
-                <a href="{% url 'accounts:profile_detail' p.user.username %}" class="btn btn-outline-primary btn-sm mb-2">View Profile</a>
-              </div>
+    <div class="search-card">
+        <form method="get" class="row gx-2 gy-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small">Query</label>
+                <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="keywords">
             </div>
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-  {% else %}
-    <p class="text-muted mt-3">No applicants found matching your filters.</p>
-  {% endif %}
 
-  <div class="mt-4">
-    <a href="/" class="btn btn-secondary">Back home</a>
-  </div>
+            <div class="col-auto">
+                <label class="form-label small">Skills</label>
+                <input type="text" name="skills" value="{{ skills }}" class="form-control form-control-sm" placeholder="e.g. Python, Django">
+            </div>
+
+            <div class="col-auto">
+                <label class="form-label small">Location</label>
+                <div class="search-container">
+                    <input type="text" name="location" value="{{ location }}" class="form-control form-control-sm" placeholder="City, State" autocomplete="off">
+                    <div class="autocomplete-dropdown"></div>
+                </div>
+            </div>
+
+            <div class="col-auto">
+                <label class="form-label small">Experience</label>
+                <input type="text" name="experience" value="{{ experience }}" class="form-control form-control-sm" placeholder="e.g. 3 years">
+            </div>
+
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+            </div>
+        </form>
+
+        <div class="form-text mt-1">Tip: separate multiple skills with commas.</div>
+    </div>
+
+    {% if profiles %}
+<div class="candidates-list">
+    {% for p in profiles %}
+        <a href="{% url 'accounts:profile_detail' p.user.username %}" class="candidate-card-link">
+            <div class="candidate-card">
+
+                <!-- NAME -->
+                <h2 class="candidate-name">
+                    {{ p.user.get_full_name|default:p.user.username }}
+                </h2>
+
+                <!-- DESIRED POSITIONS -->
+                {% if p.desired_positions_list %}
+                <div class="candidate-desired-positions">
+                    <strong>Desired Position{{ p.desired_positions_list|length|pluralize }}:</strong>
+                    <ul>
+                        {% for pos in p.desired_positions_list %}
+                            <li>{{ pos }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- EXPERIENCE -->
+                {% if p.experience_visible and p.experience %}
+                <div class="candidate-experience">
+                    <strong>Experience:</strong>
+                    <p>{{ p.experience }}</p>
+                </div>
+                {% endif %}
+
+                <!-- LOCATION -->
+                {% if p.location %}
+                <div class="candidate-location">
+                    <strong>Location:</strong> {{ p.location }}
+                </div>
+                {% endif %}
+
+                <!-- SKILLS -->
+                {% if p.skills_visible and p.skill_list %}
+                <div class="skills-container">
+                    <strong>Skills:</strong>
+                    <div class="skill-badges">
+                        {% for skill in p.skill_list %}
+                            <span class="skill-badge">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">No applicants found matching your filters.</p>
+{% endif %}
+
+
+    <div style="margin-top: 32px;">
+        <a href="/" class="btn btn-secondary">Back home</a>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// MapBox API functions
 async function searchAddresses(query, limit = 5) {
   if (query.length < 3) return [];
   const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFpaGxlIiwiYSI6ImNtZnZkZWF0azA2YmkyeXBqOW15MnpyYmsifQ._VgiLAueIm7KWmZLY5hGTQ';
-  
-  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_TOKEN') return [];
-  
+
+  if (!MAPBOX_TOKEN) return [];
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=${limit}&autocomplete=true`;
     const res = await fetch(url);
     const data = await res.json();
-    if (data.features) {
-      return data.features.map(item => ({
-        display_name: item.place_name,
-        lat: item.center[1],
-        lon: item.center[0]
-      }));
-    }
-    return [];
-  } catch (error) { return []; }
+    return data.features?.map(item => ({
+      display_name: item.place_name,
+      lat: item.center[1],
+      lon: item.center[0]
+    })) || [];
+  } catch { return []; }
 }
 
-// Autocomplete for location input
 const locationInput = document.querySelector('input[name="location"]');
 const dropdown = document.querySelector('.autocomplete-dropdown');
 let searchTimeout;
 
 if (locationInput && dropdown) {
-  locationInput.addEventListener('input', async function(e) {
+  locationInput.addEventListener('input', function(e) {
     clearTimeout(searchTimeout);
     const query = e.target.value.trim();
-    
-    if (query.length < 3) {
-      dropdown.style.display = 'none';
-      return;
-    }
-    
+    if (query.length < 3) { dropdown.style.display = 'none'; return; }
+
     searchTimeout = setTimeout(async () => {
       const suggestions = await searchAddresses(query);
-      
       dropdown.innerHTML = '';
       if (suggestions.length > 0) {
         suggestions.forEach(suggestion => {
@@ -172,20 +272,15 @@ if (locationInput && dropdown) {
           dropdown.appendChild(item);
         });
         dropdown.style.display = 'block';
-      } else {
-        dropdown.style.display = 'none';
-      }
+      } else dropdown.style.display = 'none';
     }, 300);
   });
-  
-  locationInput.addEventListener('blur', function() {
-    setTimeout(() => dropdown.style.display = 'none', 150);
-  });
-  
-  locationInput.addEventListener('focus', function() {
-    if (dropdown.children.length > 0) {
-      dropdown.style.display = 'block';
-    }
+
+  locationInput.addEventListener('blur', () =>
+    setTimeout(() => dropdown.style.display = 'none', 150)
+  );
+  locationInput.addEventListener('focus', () => {
+    if (dropdown.children.length > 0) dropdown.style.display = 'block';
   });
 }
 
