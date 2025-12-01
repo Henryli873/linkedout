@@ -216,14 +216,41 @@ def find_applicants(request):
 		qs = qs.filter(experience__icontains=experience_q)
 
 	if q:
-		qs = qs.filter(
+		# Unified, all-purpose search across multiple profile and user fields
+		or_q = (
 			Q(headline__icontains=q) |
 			Q(bio__icontains=q) |
 			Q(skills__icontains=q) |
 			Q(experience__icontains=q) |
 			Q(education__icontains=q) |
-			Q(company__icontains=q)
+			Q(company__icontains=q) |
+			Q(user__username__icontains=q) |
+			Q(user__first_name__icontains=q) |
+			Q(user__last_name__icontains=q)
 		)
+		# Attempt to include location if the field exists
+		try:
+			or_q = or_q | Q(location__icontains=q)
+		except Exception:
+			pass
+		# Expand tokenized search to catch multiple skills/terms (split on commas or whitespace)
+		tokens = [t.strip() for t in re.split(r'[,\s]+', q) if t.strip()]
+		if tokens:
+			tq = Q()
+			for t in tokens:
+				tq |= (
+					Q(skills__icontains=t) |
+					Q(experience__icontains=t) |
+					Q(education__icontains=t) |
+					Q(headline__icontains=t) |
+					Q(company__icontains=t)
+				)
+				try:
+					tq |= Q(location__icontains=t)
+				except Exception:
+					pass
+			or_q = or_q | tq
+		qs = qs.filter(or_q)
 
 	qs = qs.select_related('user').order_by('user__username')
 
