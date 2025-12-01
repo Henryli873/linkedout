@@ -194,6 +194,7 @@ def find_applicants(request):
 	skills_q = request.GET.get('skills', '').strip()
 	location = request.GET.get('location', '').strip()
 	experience_q = request.GET.get('experience', '').strip()
+	desired_position_q = request.GET.get('desired_position', '').strip()
 
 	qs = Profile.objects.filter(is_recruiter=False)
 
@@ -254,13 +255,20 @@ def find_applicants(request):
 
 	qs = qs.select_related('user').order_by('user__username')
 
+	for p in qs:
+		p.skill_list = p.skills.split(",") if p.skills else []
+		p.desired_positions_list = (
+			[t.strip() for t in p.desired_positions.split(",")]
+			if p.desired_positions else []
+		)
+
 	return render(request, 'accounts/find_applicants.html', {
 		'profiles': qs,
 		'q': q,
 		'skills': skills_q,
 		'location': location,
 		'experience': experience_q,
-	})
+		'desired_position': desired_position_q,})
 
 class CustomLoginView(LoginView):
 	template_name = 'registration/login.html'
