@@ -21,128 +21,32 @@ import re
 
 
 def search(request):
-    # Collect query params
+    """
+    Unified jobs search view: single 'q' parameter filters across title, company, description, and location.
+    Renders the new jobs/find-jobs.html template.
+    """
     q = request.GET.get('q', '').strip()
-    location = request.GET.get('location', '').strip()
-    salary_min = request.GET.get('salary_min', '')
-    salary_max = request.GET.get('salary_max', '')
-    work_type = request.GET.get('work_type', '')
-    visa = request.GET.get('visa_sponsorship', '')
-    # Base queryset
+
     qs = Job.objects.all()
 
-    # Parse radius/lat/lon
-    radius = request.GET.get('radius', '').strip()
-    lat = request.GET.get('lat', '').strip()
-    lon = request.GET.get('lon', '').strip()
-    try:
-        radius_f = float(radius) if radius != '' else None
-        lat_f = float(lat) if lat != '' else None
-        lon_f = float(lon) if lon != '' else None
-    except (ValueError, TypeError):
-        radius_f = lat_f = lon_f = None
+    if q:
+        # Tokenize by commas and whitespace; require each token to match at least one field.
+        tokens = [t for t in re.split(r'[,\s]+', q) if t]
+        for t in tokens:
+            qs = qs.filter(
+                Q(title__icontains=t) |
+                Q(company__icontains=t) |
+                Q(description__icontains=t) |
+                Q(location__icontains=t)
+            )
 
-    # Default result container
-    context_jobs = qs
-
-    # If radius is not provided (Any), ignore location data and only use name-based filtering
-    if radius_f is None:
-        if q:
-            # Name match = title OR company (no location constraints)
-            context_jobs = qs.filter(Q(title__icontains=q) | Q(company__icontains=q)).order_by('-posted_at')
-        else:
-            # No q and radius Any -> recent first, ignore any location inputs
-            context_jobs = qs.order_by('-posted_at')
-    else:
-        # radius is numeric — ensure we have center coordinates
-        if (lat_f is None or lon_f is None) and location:
-            geoc = geocode_address(location)
-            if geoc:
-                lat_f, lon_f = geoc
-
-        # If still no center coords, we cannot apply a distance filter -> return no results
-        if lat_f is None or lon_f is None:
-            context_jobs = Job.objects.none()
-        else:
-            # Candidate jobs (do not exclude jobs missing coords yet)
-            qs_candidates = qs
-            if q:
-                qs_candidates = qs_candidates.filter(Q(title__icontains=q) | Q(company__icontains=q))
-
-            nearby_ids = []
-            distances = {}
-
-            for job in qs_candidates:
-                # job location string (adjust field name if your model uses a different field)
-                job_loc_str = getattr(job, 'location', None) or getattr(job, 'location_name', None)
-                lat_j, lon_j = job.latitude, job.longitude
-
-                # If coords missing, attempt geocode (cached + persisted)
-                if lat_j is None or lon_j is None:
-                    if not job_loc_str:
-                        # no address available to geocode
-                        continue
-
-                    # safe cache key
-                    cache_key = f"geocode:job:{job.pk}:{urllib.parse.quote_plus(job_loc_str)}"
-                    cached = cache.get(cache_key)
-                    if cached and cached.get('lat') is not None and cached.get('lon') is not None:
-                        lat_j, lon_j = cached['lat'], cached['lon']
-                        # persist to DB if needed
-                        try:
-                            if job.latitude != lat_j or job.longitude != lon_j:
-                                job.latitude = float(lat_j)
-                                job.longitude = float(lon_j)
-                                job.save(update_fields=['latitude', 'longitude'])
-                        except Exception:
-                            # ignore db save errors (you can log here)
-                            pass
-                    else:
-                        geoc = geocode_address(job_loc_str)
-                        if geoc:
-                            lat_j, lon_j = geoc
-                            cache.set(cache_key, {'lat': lat_j, 'lon': lon_j}, 60*60*24)
-                            try:
-                                job.latitude = float(lat_j)
-                                job.longitude = float(lon_j)
-                                job.save(update_fields=['latitude', 'longitude'])
-                            except Exception:
-                                pass
-                        else:
-                            # could not geocode this job -> skip it
-                            continue
-
-                # Now compute distance. (Kept your existing haversine signature/order)
-                try:
-                    d = haversine(lon_f, lat_f, lon_j, lat_j)
-                except Exception:
-                    # skip any job that raises during distance calc
-                    continue
-
-                if d <= radius_f:
-                    nearby_ids.append(job.pk)
-                    distances[job.pk] = d
-
-            # Build final result set
-            if nearby_ids:
-                qs_filtered = qs.filter(pk__in=nearby_ids)
-                # produce a list sorted by computed distance
-                jobs_list = list(qs_filtered)
-                jobs_list.sort(key=lambda j: distances.get(j.pk, float('inf')))
-                context_jobs = jobs_list
-            else:
-                context_jobs = Job.objects.none()
+    jobs = qs.order_by('-posted_at')
 
     context = {
         'q': q,
-        'location': location,
-        'salary_min': salary_min,
-        'salary_max': salary_max,
-        'work_type': work_type,
-        'visa': visa,
-        'jobs': context_jobs,
+        'jobs': jobs,
     }
-    return render(request, 'jobs/search_results.html', context)
+    return render(request, 'jobs/find-jobs.html', context)
 
 def calculate_match_score(job, profile):
     """

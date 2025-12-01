@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Find Jobs{% endblock %}
+
+{% block extra_css %}
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+.container-page { max-width: 1024px; margin: 0 auto; padding: 24px 0; }
+.search-container { position: relative; margin-bottom: 12px; }
+.search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; width: 20px; height: 20px; }
+.search-input { width: 100%; padding: 12px 16px 12px 48px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; color: #111827; background-color: #ffffff; transition: all 0.2s; }
+.search-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.search-input::placeholder { color: #9ca3af; }
+.recommend-row { margin-bottom: 24px; }
+.jobs-list { display: flex; flex-direction: column; gap: 16px; }
+.job-card { background-color: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); transition: box-shadow 0.2s; }
+.job-card:hover { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+.job-title { font-size: 1.25rem; font-weight: 600; color: #111827; margin-bottom: 8px; line-height: 1.4; }
+.job-company { font-size: 1rem; color: #374151; margin-bottom: 12px; line-height: 1.5; }
+.job-details { display: flex; gap: 16px; font-size: 0.875rem; color: #4b5563; flex-wrap: wrap; align-items: center; }
+.separator { color: #d1d5db; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-page">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Find Jobs</h2>
+    <div class="text-muted small">{{ jobs|length }} results</div>
+  </div>
+
+  <form method="get" action="{% url 'jobs:search' %}">
+    <div class="search-container">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <circle cx="11" cy="11" r="8" stroke-width="2"/>
+        <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <input type="text" name="q" class="search-input" placeholder="Search for jobs, companies, or keywords..." value="{{ q }}">
+    </div>
+  </form>
+
+  <div class="recommend-row">
+    <a href="{% url 'jobs:suggested_jobs' %}" class="btn btn-outline-success btn-sm">
+      Recommend jobs based on my skills
+    </a>
+  </div>
+
+  {% if jobs %}
+    <div class="jobs-list">
+      {% for job in jobs %}
+        <div class="job-card">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="job-title">{{ job.title }}</div>
+              <div class="job-company">{{ job.company }}</div>
+              <p class="text-muted mb-2" style="max-height:3.6em; overflow:hidden;">{{ job.description }}</p>
+              <div class="job-details">
+                {% if job.location %}
+                  <span>{{ job.location }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="ms-3 d-flex flex-column align-items-end">
+              <a href="{% url 'jobs:job_detail' job.pk %}" class="btn btn-outline-primary btn-sm mb-2">View</a>
+              <a href="{% url 'jobs:apply' job.pk %}" class="btn btn-primary btn-sm">Apply</a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No jobs found.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}{% endblock %}

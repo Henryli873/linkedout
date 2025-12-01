@@ -184,91 +184,45 @@ def signup(request):
 
 @login_required
 def find_applicants(request):
-	"""Recruiter-only: search applicant profiles by skills, location, and experience."""
+	"""Recruiter-only: unified search across candidate fields using a single query string."""
 	profile = getattr(request.user, 'profile', None)
 	if not profile or not profile.is_recruiter:
 		return HttpResponseForbidden("You are not authorized.")
 
-	# Query params
+	# Unified query param
 	q = request.GET.get('q', '').strip()
-	skills_q = request.GET.get('skills', '').strip()
-	location = request.GET.get('location', '').strip()
-	experience_q = request.GET.get('experience', '').strip()
-	desired_position_q = request.GET.get('desired_position', '').strip()
 
 	qs = Profile.objects.filter(is_recruiter=False)
 
-	if skills_q:
-		tokens = [t.strip() for t in re.split(r'[,\s]+', skills_q) if t.strip()]
-		if tokens:
-			sq = Q()
-			for t in tokens:
-				sq |= Q(skills__icontains=t)
-			qs = qs.filter(sq)
-
-	if location:
-		# If location field exists, use it; otherwise fall back to searching bio/experience/education
-		try:
-			qs = qs.filter(location__icontains=location)
-		except Exception:
-			qs = qs.filter(Q(bio__icontains=location) | Q(experience__icontains=location) | Q(education__icontains=location))
-
-	if experience_q:
-		qs = qs.filter(experience__icontains=experience_q)
-
 	if q:
-		# Unified, all-purpose search across multiple profile and user fields
-		or_q = (
-			Q(headline__icontains=q) |
-			Q(bio__icontains=q) |
-			Q(skills__icontains=q) |
-			Q(experience__icontains=q) |
-			Q(education__icontains=q) |
-			Q(company__icontains=q) |
-			Q(user__username__icontains=q) |
-			Q(user__first_name__icontains=q) |
-			Q(user__last_name__icontains=q)
-		)
-		# Attempt to include location if the field exists
-		try:
-			or_q = or_q | Q(location__icontains=q)
-		except Exception:
-			pass
-		# Expand tokenized search to catch multiple skills/terms (split on commas or whitespace)
-		tokens = [t.strip() for t in re.split(r'[,\s]+', q) if t.strip()]
-		if tokens:
-			tq = Q()
-			for t in tokens:
-				tq |= (
-					Q(skills__icontains=t) |
-					Q(experience__icontains=t) |
-					Q(education__icontains=t) |
-					Q(headline__icontains=t) |
-					Q(company__icontains=t)
-				)
-				try:
-					tq |= Q(location__icontains=t)
-				except Exception:
-					pass
-			or_q = or_q | tq
-		qs = qs.filter(or_q)
+		# Tokenize on commas/whitespace; require each token to match at least one field
+		tokens = [t for t in re.split(r'[,\s]+', q) if t]
+		for t in tokens:
+			qs = qs.filter(
+				Q(user__username__icontains=t) |
+				Q(user__first_name__icontains=t) |
+				Q(user__last_name__icontains=t) |
+				Q(headline__icontains=t) |
+				Q(bio__icontains=t) |
+				Q(skills__icontains=t) |
+				Q(experience__icontains=t) |
+				Q(education__icontains=t) |
+				Q(company__icontains=t) |
+				Q(location__icontains=t) |
+				Q(desired_positions__icontains=t) |
+				Q(desired_companies__icontains=t)
+			)
 
 	qs = qs.select_related('user').order_by('user__username')
 
 	for p in qs:
-		p.skill_list = p.skills.split(",") if p.skills else []
-		p.desired_positions_list = (
-			[t.strip() for t in p.desired_positions.split(",")]
-			if p.desired_positions else []
-		)
+		p.skill_list = [s.strip() for s in p.skills.split(",")] if p.skills else []
+		p.desired_positions_list = [s.strip() for s in p.desired_positions.split(",")] if p.desired_positions else []
 
-	return render(request, 'accounts/find_applicants.html', {
+	return render(request, 'accounts/find-candidates.html', {
 		'profiles': qs,
 		'q': q,
-		'skills': skills_q,
-		'location': location,
-		'experience': experience_q,
-		'desired_position': desired_position_q,})
+	})
 
 class CustomLoginView(LoginView):
 	template_name = 'registration/login.html'

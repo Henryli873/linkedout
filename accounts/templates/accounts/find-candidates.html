@@ -1,280 +1,90 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find Candidates - Linked Out</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+{% extends 'base.html' %}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            background-color: #f9fafb;
-            min-height: 100vh;
-        }
+{% block title %}Find Candidates{% endblock %}
 
-        .container {
-            max-width: 1024px;
-            margin: 0 auto;
-            padding: 48px 24px;
-        }
+{% block extra_css %}
+<style>
+/* Reset and layout */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+.container-page { max-width: 1024px; margin: 0 auto; padding: 24px 0; }
 
-        h1 {
-            font-size: 2.25rem;
-            font-weight: 800;
-            color: #111827;
-            margin-bottom: 32px;
-            line-height: 1.2;
-        }
+/* Search Bar */
+.search-container { position: relative; margin-bottom: 24px; }
+.search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #9ca3af; width: 20px; height: 20px; }
+.search-input { width: 100%; padding: 12px 16px 12px 48px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; color: #111827; background-color: #ffffff; transition: all 0.2s; }
+.search-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.search-input::placeholder { color: #9ca3af; }
 
-        /* Search Bar */
-        .search-container {
-            position: relative;
-            margin-bottom: 32px;
-        }
+/* Candidate Listings */
+.candidates-list { display: flex; flex-direction: column; gap: 16px; }
+.candidate-card-link { display: block; text-decoration: none; color: inherit; }
+.candidate-card { background-color: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: box-shadow 0.2s, transform 0.2s; }
+.candidate-card-link:hover .candidate-card { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); transform: translateY(-1px); }
+.candidate-name { font-size: 1.25rem; font-weight: 600; color: #111827; margin-bottom: 4px; line-height: 1.4; }
+.candidate-title { font-size: 1rem; color: #374151; margin-bottom: 12px; line-height: 1.5; }
+.candidate-info { font-size: 0.875rem; color: #4b5563; margin-bottom: 12px; }
+.separator { margin: 0 8px; color: #d1d5db; }
+.skills-container { display: flex; gap: 8px; flex-wrap: wrap; }
+.skill-tag { padding: 6px 12px; background-color: #dbeafe; color: #1d4ed8; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; }
 
-        .search-icon {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #9ca3af;
-            width: 20px;
-            height: 20px;
-        }
+@media (max-width: 768px) {
+  .candidate-info { font-size: 0.8125rem; }
+  .skill-tag { font-size: 0.8125rem; padding: 4px 10px; }
+}
+</style>
+{% endblock %}
 
-        .search-input {
-            width: 100%;
-            padding: 12px 16px 12px 48px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 1rem;
-            color: #111827;
-            background-color: #ffffff;
-            transition: all 0.2s;
-        }
+{% block content %}
+<div class="container-page">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Find Candidates</h2>
+    <div class="text-muted small">{{ profiles|length }} results</div>
+  </div>
 
-        .search-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-
-        .search-input::placeholder {
-            color: #9ca3af;
-        }
-
-        /* Candidate Listings */
-        .candidates-list {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .candidate-card {
-            background-color: #ffffff;
-            padding: 24px;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-            transition: box-shadow 0.2s;
-        }
-
-        .candidate-card:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .candidate-name {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #111827;
-            margin-bottom: 4px;
-            line-height: 1.4;
-        }
-
-        .candidate-title {
-            font-size: 1rem;
-            color: #374151;
-            margin-bottom: 12px;
-            line-height: 1.5;
-        }
-
-        .candidate-info {
-            font-size: 0.875rem;
-            color: #4b5563;
-            margin-bottom: 12px;
-        }
-
-        .candidate-info span {
-            display: inline-block;
-        }
-
-        .separator {
-            margin: 0 8px;
-            color: #d1d5db;
-        }
-
-        /* Skills */
-        .skills-container {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .skill-tag {
-            padding: 6px 12px;
-            background-color: #dbeafe;
-            color: #1d4ed8;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 1.875rem;
-            }
-
-            .candidate-info {
-                font-size: 0.8125rem;
-            }
-
-            .skill-tag {
-                font-size: 0.8125rem;
-                padding: 4px 10px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Find Candidates</h1>
-        
-        <!-- Search Bar -->
-        <div class="search-container">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <circle cx="11" cy="11" r="8" stroke-width="2"/>
-                <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <input 
-                type="text" 
-                class="search-input" 
-                placeholder="Search by skills, title, or location..."
-            />
-        </div>
-
-        <!-- Candidate Listings -->
-        <div class="candidates-list">
-            <!-- Candidate 1 -->
-            <div class="candidate-card">
-                <h2 class="candidate-name">Sarah Johnson</h2>
-                <p class="candidate-title">Full Stack Developer</p>
-                <div class="candidate-info">
-                    <span>5 years experience</span>
-                    <span class="separator">•</span>
-                    <span>Seattle, WA</span>
-                </div>
-                <div class="skills-container">
-                    <span class="skill-tag">React</span>
-                    <span class="skill-tag">Node.js</span>
-                    <span class="skill-tag">Python</span>
-                    <span class="skill-tag">AWS</span>
-                </div>
-            </div>
-
-            <!-- Candidate 2 -->
-            <div class="candidate-card">
-                <h2 class="candidate-name">Michael Chen</h2>
-                <p class="candidate-title">Product Designer</p>
-                <div class="candidate-info">
-                    <span>7 years experience</span>
-                    <span class="separator">•</span>
-                    <span>Austin, TX</span>
-                </div>
-                <div class="skills-container">
-                    <span class="skill-tag">Figma</span>
-                    <span class="skill-tag">UI/UX</span>
-                    <span class="skill-tag">Design Systems</span>
-                    <span class="skill-tag">Prototyping</span>
-                </div>
-            </div>
-
-            <!-- Candidate 3 -->
-            <div class="candidate-card">
-                <h2 class="candidate-name">Emily Rodriguez</h2>
-                <p class="candidate-title">Data Engineer</p>
-                <div class="candidate-info">
-                    <span>4 years experience</span>
-                    <span class="separator">•</span>
-                    <span>Chicago, IL</span>
-                </div>
-                <div class="skills-container">
-                    <span class="skill-tag">SQL</span>
-                    <span class="skill-tag">Spark</span>
-                    <span class="skill-tag">Python</span>
-                    <span class="skill-tag">Airflow</span>
-                </div>
-            </div>
-
-            <!-- Candidate 4 -->
-            <div class="candidate-card">
-                <h2 class="candidate-name">David Park</h2>
-                <p class="candidate-title">DevOps Engineer</p>
-                <div class="candidate-info">
-                    <span>6 years experience</span>
-                    <span class="separator">•</span>
-                    <span>San Diego, CA</span>
-                </div>
-                <div class="skills-container">
-                    <span class="skill-tag">Kubernetes</span>
-                    <span class="skill-tag">Docker</span>
-                    <span class="skill-tag">CI/CD</span>
-                    <span class="skill-tag">Terraform</span>
-                </div>
-            </div>
-        </div>
+  <!-- Unified search bar -->
+  <form method="get" action="{% url 'accounts:find_applicants' %}">
+    <div class="search-container">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <circle cx="11" cy="11" r="8" stroke-width="2"/>
+        <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <input type="text" name="q" class="search-input" placeholder="Search by skills, title, experience, or location..." value="{{ q }}" />
     </div>
+  </form>
 
-    <script>
-        // Add basic search functionality
-        const searchInput = document.querySelector('.search-input');
-        const candidateCards = document.querySelectorAll('.candidate-card');
+  {% if profiles %}
+    <div class="candidates-list">
+      {% for p in profiles %}
+        <a href="{% url 'accounts:profile_detail' p.user.username %}" class="candidate-card-link">
+          <div class="candidate-card">
+            <div class="candidate-name">{{ p.user.get_full_name|default:p.user.username }}</div>
+            {% if p.headline_visible and p.headline %}
+              <div class="candidate-title">{{ p.headline }}</div>
+            {% endif %}
+            <div class="candidate-info">
+              {% if p.location %}
+                <span>{{ p.location }}</span>
+              {% endif %}
+              {% if p.experience_visible and p.experience %}
+                {% if p.location %}<span class="separator">•</span>{% endif %}
+                <span>{{ p.experience|truncatechars:140 }}</span>
+              {% endif %}
+            </div>
+            {% if p.skills_visible and p.skills %}
+              <div class="skills-container">
+                {% for s in p.skill_list|slice:':10' %}
+                  <span class="skill-tag">{{ s }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No candidates found.</p>
+  {% endif %}
+</div>
+{% endblock %}
 
-        searchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            
-            candidateCards.forEach(card => {
-                const name = card.querySelector('.candidate-name').textContent.toLowerCase();
-                const title = card.querySelector('.candidate-title').textContent.toLowerCase();
-                const info = card.querySelector('.candidate-info').textContent.toLowerCase();
-                const skills = Array.from(card.querySelectorAll('.skill-tag'))
-                    .map(tag => tag.textContent.toLowerCase())
-                    .join(' ');
-                
-                if (name.includes(searchTerm) || title.includes(searchTerm) || 
-                    info.includes(searchTerm) || skills.includes(searchTerm)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        });
-
-        // Add click handlers to candidate cards
-        candidateCards.forEach(card => {
-            card.addEventListener('click', () => {
-                const candidateName = card.querySelector('.candidate-name').textContent;
-                alert(`Viewing profile for: ${candidateName}`);
-            });
-        });
-    </script>
-</body>
-</html>
+{% block extra_js %}{% endblock %}
